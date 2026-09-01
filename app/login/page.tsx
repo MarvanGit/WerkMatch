@@ -14,7 +14,12 @@ import { LoginForm } from './login-form';
 
 export const dynamic = 'force-dynamic';
 
-export default async function LoginPage() {
+type LoginPageProps = {
+  searchParams: Promise<{ error?: string }>;
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const { error } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -53,6 +58,15 @@ export default async function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
+            {error ? (
+              <div
+                className="mb-4 rounded-xl border border-amber-300/60 bg-amber-50 px-3.5 py-3 text-sm leading-relaxed text-amber-950"
+                role="alert"
+              >
+                That sign-in link could not be verified. Request a fresh link
+                below.
+              </div>
+            ) : null}
             <LoginForm />
           </CardContent>
         </Card>

@@ -39,3 +39,7 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# Supabase CLI local project metadata
+/supabase/.branches/
+/supabase/.temp/
