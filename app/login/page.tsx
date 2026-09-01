@@ -53,7 +53,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               Sign in to your job radar
             </CardTitle>
             <CardDescription className="mx-auto mt-1 max-w-sm leading-relaxed">
-              Use a passwordless email link to access your matches and private
+              Use your private Supabase account to access matches and
               application documents.
             </CardDescription>
           </CardHeader>
@@ -63,7 +63,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 className="mb-4 rounded-xl border border-amber-300/60 bg-amber-50 px-3.5 py-3 text-sm leading-relaxed text-amber-950"
                 role="alert"
               >
-                That sign-in link could not be verified. Request a fresh link
+                That sign-in attempt could not be verified. Please try again
                 below.
               </div>
             ) : null}
@@ -72,7 +72,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </Card>
 
         <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
-          Your CV and generated documents stay in private Supabase storage.
+          Your credentials are handled by Supabase Auth. WerkMatch never stores
+          your password.
         </p>
       </div>
     </main>

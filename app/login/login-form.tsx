@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, CheckCircle2, LoaderCircle, Mail } from 'lucide-react';
+import { ArrowRight, KeyRound, LoaderCircle, Mail } from 'lucide-react';
 import { useState, type SyntheticEvent } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,6 @@ import { createClient } from '@/lib/supabase/client';
 type FormState =
   | { status: 'idle' }
   | { status: 'submitting' }
-  | { status: 'sent'; email: string }
   | { status: 'error'; message: string };
 
 export function LoginForm() {
@@ -26,51 +25,37 @@ export function LoginForm() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const emailEntry = form.get('email');
+    const passwordEntry = form.get('password');
     const email = typeof emailEntry === 'string' ? emailEntry.trim() : '';
+    const password = typeof passwordEntry === 'string' ? passwordEntry : '';
 
-    if (!email) {
-      setState({ status: 'error', message: 'Enter your email address.' });
+    if (!email || !password) {
+      setState({
+        status: 'error',
+        message: 'Enter both your email address and password.',
+      });
       return;
     }
 
     setState({ status: 'submitting' });
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-        shouldCreateUser: false,
-      },
+      password,
     });
 
     if (error) {
-      setState({ status: 'error', message: error.message });
+      setState({
+        status: 'error',
+        message:
+          error.message === 'Invalid login credentials'
+            ? 'The email or password is incorrect.'
+            : error.message,
+      });
       return;
     }
 
-    setState({ status: 'sent', email });
-  }
-
-  if (state.status === 'sent') {
-    return (
-      <div className="rounded-2xl border border-primary/20 bg-primary/[0.055] p-5">
-        <CheckCircle2 className="size-6 text-primary" />
-        <p className="mt-3 font-heading text-lg font-semibold">
-          Check your inbox
-        </p>
-        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-          We sent a secure sign-in link to {state.email}. It expires shortly and
-          can only be used once.
-        </p>
-        <Button
-          className="mt-4"
-          onClick={() => setState({ status: 'idle' })}
-          variant="outline"
-        >
-          Use another email
-        </Button>
-      </div>
-    );
+    window.location.assign('/');
   }
 
   const isSubmitting = state.status === 'submitting';
@@ -88,16 +73,35 @@ export function LoginForm() {
             id="email"
             name="email"
             placeholder="you@example.com"
+            required
             type="email"
           />
         </div>
-        <FieldDescription>
-          Only accounts created in your WerkMatch Supabase project can sign in.
-        </FieldDescription>
-        {state.status === 'error' ? (
-          <FieldError>{state.message}</FieldError>
-        ) : null}
       </Field>
+
+      <Field>
+        <FieldLabel htmlFor="password">Password</FieldLabel>
+        <div className="relative">
+          <KeyRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            autoComplete="current-password"
+            className="h-11 pl-9"
+            disabled={isSubmitting}
+            id="password"
+            name="password"
+            required
+            type="password"
+          />
+        </div>
+        <FieldDescription>
+          Use the password from the Supabase user you created. It is sent only
+          to Supabase Auth.
+        </FieldDescription>
+      </Field>
+
+      {state.status === 'error' ? (
+        <FieldError>{state.message}</FieldError>
+      ) : null}
 
       <Button className="h-11 w-full" disabled={isSubmitting} type="submit">
         {isSubmitting ? (
@@ -105,7 +109,7 @@ export function LoginForm() {
         ) : (
           <ArrowRight />
         )}
-        Email me a sign-in link
+        Sign in securely
       </Button>
     </form>
   );
