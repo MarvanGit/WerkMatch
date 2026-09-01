@@ -30,66 +30,52 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { RunSearchButton } from '@/components/run-search-button';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-const jobs = [
-  {
-    title: 'Working Student Full-Stack Engineering',
-    company: 'Bavaria Systems Lab',
-    location: 'Nuremberg · Hybrid',
-    age: '18 min ago',
-    score: 91,
-    tags: ['Python', 'FastAPI', 'TypeScript'],
-    status: 'Strong match',
-  },
-  {
-    title: 'Werkstudent Software Testing & QA',
-    company: 'Erlangen Robotics',
-    location: 'Erlangen · On-site',
-    age: '2 hours ago',
-    score: 86,
-    tags: ['pytest', 'Playwright', 'CI/CD'],
-    status: 'Strong match',
-  },
-  {
-    title: 'Working Student Data Engineering',
-    company: 'Remote Analytics Europe',
-    location: 'Germany · Remote',
-    age: '4 hours ago',
-    score: 78,
-    tags: ['PostgreSQL', 'Python', 'Docker'],
-    status: 'Good match',
-  },
-];
+type StoredEvaluation = {
+  job_id: string;
+  overall_score: number;
+  summary: string;
+  reasons: unknown;
+  matched_evidence: unknown;
+  language_risk: 'none' | 'low' | 'medium' | 'high';
+  language_assessment: string;
+  evaluated_at: string;
+};
 
-const stats = [
-  {
-    label: 'New this week',
-    value: '24',
-    detail: 'Across active sources',
-    icon: BriefcaseBusiness,
-  },
-  {
-    label: 'Strong matches',
-    value: '8',
-    detail: 'Score of 80 or higher',
-    icon: Sparkles,
-  },
-  {
-    label: 'Search cadence',
-    value: '6h',
-    detail: 'Next run in 2h 14m',
-    icon: CalendarClock,
-  },
-  {
-    label: 'Telegram',
-    value: 'Ready',
-    detail: 'High-match alerts enabled',
-    icon: Send,
-  },
-];
+type StoredJob = {
+  id: string;
+  title: string;
+  company: string;
+  location_text: string;
+  work_mode: string;
+  canonical_url: string;
+  first_seen_at: string;
+};
+
+function formatRelativeTime(value: string): string {
+  const differenceMinutes = Math.round(
+    (new Date(value).getTime() - Date.now()) / 60_000,
+  );
+  const absoluteMinutes = Math.abs(differenceMinutes);
+
+  if (absoluteMinutes < 60) {
+    return differenceMinutes >= 0
+      ? `in ${absoluteMinutes}m`
+      : `${absoluteMinutes}m ago`;
+  }
+
+  const hours = Math.round(absoluteMinutes / 60);
+  if (hours < 24) {
+    return differenceMinutes >= 0 ? `in ${hours}h` : `${hours}h ago`;
+  }
+
+  const days = Math.round(hours / 24);
+  return differenceMinutes >= 0 ? `in ${days}d` : `${days}d ago`;
+}
 
 function ScoreRing({ score }: { score: number }) {
   return (
@@ -133,6 +119,146 @@ export default async function Home() {
 
   if (!user) redirect('/login');
 
+  const weekStart = new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1_000);
+  const [
+    evaluationResult,
+    scheduleResult,
+    weeklyJobsResult,
+    strongResult,
+    factsResult,
+  ] = await Promise.all([
+    supabase
+      .from('match_evaluations')
+      .select(
+        'job_id,overall_score,summary,reasons,matched_evidence,language_risk,language_assessment,evaluated_at',
+      )
+      .eq('user_id', user.id)
+      .eq('eligible', true)
+      .order('overall_score', { ascending: false })
+      .limit(8),
+    supabase
+      .from('search_schedules')
+      .select(
+        'enabled,interval_minutes,notification_threshold,telegram_enabled,telegram_chat_id,last_run_at,next_run_at',
+      )
+      .eq('user_id', user.id)
+      .single(),
+    supabase
+      .from('jobs')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .gte('first_seen_at', weekStart.toISOString()),
+    supabase
+      .from('match_evaluations')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('eligible', true)
+      .gte('overall_score', 80),
+    supabase
+      .from('candidate_facts')
+      .select('fact_key,tags')
+      .eq('user_id', user.id)
+      .eq('verification_status', 'verified'),
+  ]);
+
+  const evaluations = (evaluationResult.data ?? []) as StoredEvaluation[];
+  const jobIds = evaluations.map((evaluation) => evaluation.job_id);
+  const { data: jobData } = jobIds.length
+    ? await supabase
+        .from('jobs')
+        .select(
+          'id,title,company,location_text,work_mode,canonical_url,first_seen_at',
+        )
+        .eq('user_id', user.id)
+        .in('id', jobIds)
+    : { data: [] };
+  const jobById = new Map(
+    ((jobData ?? []) as StoredJob[]).map((job) => [job.id, job]),
+  );
+  const factTags = new Map(
+    (factsResult.data ?? []).map((fact) => [
+      fact.fact_key,
+      fact.tags as string[],
+    ]),
+  );
+  const jobs = evaluations.flatMap((evaluation) => {
+    const job = jobById.get(evaluation.job_id);
+    if (!job) return [];
+
+    const evidence = Array.isArray(evaluation.matched_evidence)
+      ? (evaluation.matched_evidence as Array<{ candidateFactId?: string }>)
+      : [];
+    const tags = [
+      ...new Set(
+        evidence.flatMap((item) =>
+          item.candidateFactId
+            ? (factTags.get(item.candidateFactId) ?? [])
+            : [],
+        ),
+      ),
+    ].slice(0, 5);
+
+    return [
+      {
+        ...job,
+        score: evaluation.overall_score,
+        summary: evaluation.summary,
+        reasons: Array.isArray(evaluation.reasons)
+          ? (evaluation.reasons as string[])
+          : [],
+        languageRisk: evaluation.language_risk,
+        languageAssessment: evaluation.language_assessment,
+        tags,
+        status: evaluation.overall_score >= 80 ? 'Strong match' : 'Good match',
+      },
+    ];
+  });
+  const selectedJob = jobs[0] ?? null;
+  const schedule = scheduleResult.data;
+  const intervalHours = Math.max(
+    1,
+    Math.round((schedule?.interval_minutes ?? 360) / 60),
+  );
+  const telegramReady =
+    (schedule?.telegram_enabled ?? true) &&
+    Boolean(schedule?.telegram_chat_id ?? process.env.TELEGRAM_CHAT_ID);
+  const stats = [
+    {
+      label: 'New this week',
+      value: String(weeklyJobsResult.count ?? 0),
+      detail: 'Across active sources',
+      icon: BriefcaseBusiness,
+    },
+    {
+      label: 'Strong matches',
+      value: String(strongResult.count ?? 0),
+      detail: 'Score of 80 or higher',
+      icon: Sparkles,
+    },
+    {
+      label: 'Search cadence',
+      value: `${intervalHours}h`,
+      detail: schedule?.next_run_at
+        ? `Next ${formatRelativeTime(schedule.next_run_at)}`
+        : 'Run the first search now',
+      icon: CalendarClock,
+    },
+    {
+      label: 'Telegram',
+      value: telegramReady ? 'Ready' : 'Off',
+      detail: telegramReady
+        ? `Alerts at ${schedule?.notification_threshold ?? 75}%+`
+        : 'Notifications disabled',
+      icon: Send,
+    },
+  ];
+  const today = new Intl.DateTimeFormat('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'Europe/Berlin',
+  }).format(new Date());
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-[232px] border-r border-border/80 bg-sidebar px-4 py-5 lg:flex lg:flex-col">
@@ -148,7 +274,7 @@ export default async function Home() {
             <BriefcaseBusiness />
             Job inbox
             <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[11px] text-primary-foreground">
-              8
+              {strongResult.count ?? 0}
             </span>
           </Button>
           <Button
@@ -183,7 +309,7 @@ export default async function Home() {
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-60" />
               <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
             </span>
-            Discovery is active
+            {schedule?.enabled ? 'Discovery is active' : 'Discovery is paused'}
           </div>
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
             Bavaria on-site and hybrid, plus Germany-wide remote roles.
@@ -202,7 +328,9 @@ export default async function Home() {
           </div>
           <div className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
             <Clock3 className="size-4" />
-            Last search completed 18 minutes ago
+            {schedule?.last_run_at
+              ? `Last search ${formatRelativeTime(schedule.last_run_at)}`
+              : 'No search has run yet'}
           </div>
           <div className="flex items-center gap-2">
             <form action="/auth/signout" method="post">
@@ -222,10 +350,7 @@ export default async function Home() {
               <Plus />
               Add a job
             </Button>
-            <Button className="gap-2 shadow-sm">
-              <Search />
-              Run search
-            </Button>
+            <RunSearchButton />
           </div>
         </header>
 
@@ -233,7 +358,7 @@ export default async function Home() {
           <section className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
-                Tuesday, 1 September
+                {today}
               </p>
               <h1 className="mt-1 font-heading text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">
                 Your job radar
@@ -290,7 +415,8 @@ export default async function Home() {
                     Best new matches
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    3 of 8 strong matches
+                    {jobs.length}{' '}
+                    {jobs.length === 1 ? 'eligible match' : 'eligible matches'}
                   </p>
                 </div>
                 <Button variant="ghost">
@@ -300,9 +426,20 @@ export default async function Home() {
               </div>
 
               <div className="space-y-3">
+                {jobs.length === 0 ? (
+                  <Card className="border-dashed bg-card/60 py-10 text-center">
+                    <CardContent>
+                      <Search className="mx-auto mb-3 size-6 text-muted-foreground" />
+                      <p className="font-medium">No evaluated matches yet</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Run the first search to collect and score live listings.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : null}
                 {jobs.map((job, index) => (
                   <Card
-                    key={job.title}
+                    key={job.id}
                     className={`cursor-pointer border-0 transition-all hover:-translate-y-0.5 hover:shadow-md ${
                       index === 0
                         ? 'bg-primary/[0.055] ring-1 ring-primary/25'
@@ -332,9 +469,9 @@ export default async function Home() {
                             <span>{job.company}</span>
                             <span className="inline-flex items-center gap-1">
                               <MapPin className="size-3.5" />
-                              {job.location}
+                              {job.location_text} · {job.work_mode}
                             </span>
-                            <span>{job.age}</span>
+                            <span>{formatRelativeTime(job.first_seen_at)}</span>
                           </CardDescription>
                         </div>
                       </div>
@@ -354,82 +491,107 @@ export default async function Home() {
               </div>
             </div>
 
-            <Card className="border-0 bg-card shadow-[0_18px_60px_rgb(15_23_42/8%)] xl:sticky xl:top-20">
-              <CardHeader className="border-b border-border/70 pb-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <Badge className="bg-primary/10 text-primary" variant="ghost">
-                    91% match
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    Demo listing
-                  </span>
-                </div>
-                <CardTitle className="text-xl font-semibold tracking-[-0.03em]">
-                  Working Student Full-Stack Engineering
-                </CardTitle>
-                <CardDescription className="mt-1">
-                  Bavaria Systems Lab · Nuremberg · Hybrid
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-5 pt-1">
-                <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Why it matches
-                  </p>
-                  <ul className="space-y-2.5 text-sm leading-relaxed">
-                    {[
-                      'Direct overlap with your FastAPI, PostgreSQL and Angular project.',
-                      'Automated testing and CI/CD experience are explicitly relevant.',
-                      'Hybrid location in Bavaria passes the location gate.',
-                    ].map((reason) => (
-                      <li key={reason} className="flex gap-2.5">
-                        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
-                        <span>{reason}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="rounded-xl border border-amber-300/50 bg-amber-50 p-3.5 text-amber-950 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
-                  <p className="text-xs font-semibold uppercase tracking-[0.11em]">
-                    Language note
-                  </p>
-                  <p className="mt-1 text-sm leading-relaxed">
-                    German B2 is preferred, not mandatory. Keep eligible and
-                    review before applying.
-                  </p>
-                </div>
-
-                <div>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Relevant evidence
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[
-                      'FastAPI',
-                      'Angular',
-                      'PostgreSQL',
-                      'Docker',
-                      'Playwright',
-                    ].map((skill) => (
-                      <Badge key={skill} variant="secondary">
-                        {skill}
-                      </Badge>
-                    ))}
+            {selectedJob ? (
+              <Card className="border-0 bg-card shadow-[0_18px_60px_rgb(15_23_42/8%)] xl:sticky xl:top-20">
+                <CardHeader className="border-b border-border/70 pb-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <Badge
+                      className="bg-primary/10 text-primary"
+                      variant="ghost"
+                    >
+                      {selectedJob.score}% match
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      Live listing
+                    </span>
                   </div>
-                </div>
+                  <CardTitle className="text-xl font-semibold tracking-[-0.03em]">
+                    {selectedJob.title}
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    {selectedJob.company} · {selectedJob.location_text} ·{' '}
+                    {selectedJob.work_mode}
+                  </CardDescription>
+                </CardHeader>
 
-                <div className="grid grid-cols-2 gap-2 border-t border-border/70 pt-5">
-                  <Button className="col-span-2 h-10 gap-2 shadow-sm">
-                    <Sparkles />
-                    Generate tailored documents
-                  </Button>
-                  <Button variant="outline">Open listing</Button>
-                  <Button variant="outline">Save for later</Button>
-                </div>
-              </CardContent>
-            </Card>
+                <CardContent className="space-y-5 pt-1">
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {selectedJob.summary}
+                  </p>
+
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      Why it matches
+                    </p>
+                    <ul className="space-y-2.5 text-sm leading-relaxed">
+                      {selectedJob.reasons.map((reason) => (
+                        <li key={reason} className="flex gap-2.5">
+                          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
+                          <span>{reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {selectedJob.languageRisk !== 'none' ? (
+                    <div className="rounded-xl border border-amber-300/50 bg-amber-50 p-3.5 text-amber-950 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
+                      <p className="text-xs font-semibold uppercase tracking-[0.11em]">
+                        Language note · {selectedJob.languageRisk} risk
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed">
+                        {selectedJob.languageAssessment}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      Verified evidence
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedJob.tags.map((skill) => (
+                        <Badge key={skill} variant="secondary">
+                          {skill}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 border-t border-border/70 pt-5">
+                    <Button
+                      className="col-span-2 h-10 gap-2 shadow-sm"
+                      disabled
+                      title="Document generation is the next implementation stage."
+                    >
+                      <Sparkles />
+                      Generate tailored documents
+                    </Button>
+                    <a
+                      className={buttonVariants({
+                        variant: 'outline',
+                        className: 'col-span-2',
+                      })}
+                      href={selectedJob.canonical_url}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Open listing
+                    </a>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-dashed bg-card/60 xl:sticky xl:top-20">
+                <CardHeader>
+                  <CardTitle>Run your first live search</CardTitle>
+                  <CardDescription className="leading-relaxed">
+                    WerkMatch will collect technical working-student listings,
+                    enforce your location policy, score them against verified
+                    facts, and send Telegram alerts for high matches.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            )}
           </section>
 
           <footer className="mt-8 flex flex-col gap-2 border-t border-border/70 py-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">

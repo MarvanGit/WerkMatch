@@ -15,12 +15,27 @@ WerkMatch is a private job-search workspace for technical working-student roles.
 ## Architecture
 
 - TypeScript, React, Vinext, and Cloudflare-compatible server routes
-- Supabase Auth with passwordless email links
+- Supabase Auth with email and password
 - Supabase Postgres with row-level security
 - Private Supabase Storage buckets for candidate assets and generated documents
 - OpenCode Go for structured job matching and on-demand document tailoring
 - Telegram Bot API for notifications
-- A separate Docker worker will handle browser-based scraping and LaTeX compilation
+- Arbeitnow public API as the first structured job source
+- OpenCode Go Responses API for evidence-locked match evaluation
+- A separate worker will handle browser-only sources and LaTeX compilation
+
+## Live search flow
+
+The dashboard's **Run search** action currently:
+
+1. reads recent Arbeitnow listings;
+2. rejects non-student, non-technical, and location-ineligible roles before AI use;
+3. sends only candidate listings and verified candidate facts to OpenCode Go;
+4. stores structured scores and exact candidate-fact references in Supabase; and
+5. sends Telegram alerts for new eligible matches at or above the configured threshold.
+
+Candidate facts are never sent to the job source. OpenCode and Telegram are only
+called during an authorized search run.
 
 ## Local setup
 
@@ -39,4 +54,4 @@ npm run lint
 npm run build
 ```
 
-The application is not production-ready until scraping adapters, model evaluation, document verification, LaTeX compilation, scheduling, and deployment secrets are completed.
+The application is not production-ready until additional source adapters, document verification, LaTeX compilation, recurring cloud scheduling, and deployment secrets are completed.
