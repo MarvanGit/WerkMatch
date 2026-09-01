@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowRight, KeyRound, LoaderCircle, Mail } from 'lucide-react';
-import { useState, type SyntheticEvent } from 'react';
+import { useActionState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -11,57 +11,16 @@ import {
   FieldLabel,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { createClient } from '@/lib/supabase/client';
 
-type FormState =
-  | { status: 'idle' }
-  | { status: 'submitting' }
-  | { status: 'error'; message: string };
+import { login, type LoginState } from './actions';
+
+const initialState: LoginState = { status: 'idle' };
 
 export function LoginForm() {
-  const [state, setState] = useState<FormState>({ status: 'idle' });
-
-  async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const emailEntry = form.get('email');
-    const passwordEntry = form.get('password');
-    const email = typeof emailEntry === 'string' ? emailEntry.trim() : '';
-    const password = typeof passwordEntry === 'string' ? passwordEntry : '';
-
-    if (!email || !password) {
-      setState({
-        status: 'error',
-        message: 'Enter both your email address and password.',
-      });
-      return;
-    }
-
-    setState({ status: 'submitting' });
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setState({
-        status: 'error',
-        message:
-          error.message === 'Invalid login credentials'
-            ? 'The email or password is incorrect.'
-            : error.message,
-      });
-      return;
-    }
-
-    window.location.assign('/');
-  }
-
-  const isSubmitting = state.status === 'submitting';
+  const [state, formAction, isSubmitting] = useActionState(login, initialState);
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit}>
+    <form action={formAction} className="space-y-5">
       <Field>
         <FieldLabel htmlFor="email">Email address</FieldLabel>
         <div className="relative">

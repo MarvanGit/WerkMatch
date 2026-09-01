@@ -72,8 +72,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </Card>
 
         <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
-          Your credentials are handled by Supabase Auth. WerkMatch never stores
-          your password.
+          WerkMatch passes your credentials securely to Supabase Auth and never
+          stores your password.
         </p>
       </div>
     </main>
