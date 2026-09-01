@@ -24,10 +24,10 @@ export function LoginForm() {
           <Input
             autoComplete="email"
             className="h-11 pl-9"
-            disabled={isSubmitting}
             id="email"
             name="email"
             placeholder="you@example.com"
+            readOnly={isSubmitting}
             required
             type="email"
           />
@@ -41,9 +41,9 @@ export function LoginForm() {
           <Input
             autoComplete="current-password"
             className="h-11 pl-9"
-            disabled={isSubmitting}
             id="password"
             name="password"
+            readOnly={isSubmitting}
             required
             type="password"
           />
