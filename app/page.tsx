@@ -17,10 +17,11 @@ import {
   SlidersHorizontal,
   Sparkles,
 } from 'lucide-react';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Card,
   CardAction,
@@ -164,13 +165,16 @@ export default async function Home() {
             <Radio />
             Sources
           </Button>
-          <Button
-            className="h-10 w-full justify-start gap-3 px-3"
-            variant="ghost"
+          <Link
+            className={buttonVariants({
+              variant: 'ghost',
+              className: 'h-10 w-full justify-start gap-3 px-3',
+            })}
+            href="/profile"
           >
             <SlidersHorizontal />
             Match profile
-          </Button>
+          </Link>
         </nav>
 
         <div className="mt-auto rounded-2xl border border-border/80 bg-card/70 p-4 shadow-sm">
