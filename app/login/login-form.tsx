@@ -1,26 +1,22 @@
 'use client';
 
 import { ArrowRight, KeyRound, LoaderCircle, Mail } from 'lucide-react';
-import { useActionState } from 'react';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from '@/components/ui/field';
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 
-import { login, type LoginState } from './actions';
-
-const initialState: LoginState = { status: 'idle' };
-
 export function LoginForm() {
-  const [state, formAction, isSubmitting] = useActionState(login, initialState);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form
+      action="/auth/password"
+      className="space-y-5"
+      method="post"
+      onSubmit={() => setIsSubmitting(true)}
+    >
       <Field>
         <FieldLabel htmlFor="email">Email address</FieldLabel>
         <div className="relative">
@@ -57,10 +53,6 @@ export function LoginForm() {
           to Supabase Auth.
         </FieldDescription>
       </Field>
-
-      {state.status === 'error' ? (
-        <FieldError>{state.message}</FieldError>
-      ) : null}
 
       <Button className="h-11 w-full" disabled={isSubmitting} type="submit">
         {isSubmitting ? (

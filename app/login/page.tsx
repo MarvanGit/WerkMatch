@@ -63,8 +63,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 className="mb-4 rounded-xl border border-amber-300/60 bg-amber-50 px-3.5 py-3 text-sm leading-relaxed text-amber-950"
                 role="alert"
               >
-                That sign-in attempt could not be verified. Please try again
-                below.
+                {error === 'invalid-credentials'
+                  ? 'The email or password is incorrect.'
+                  : error === 'missing-credentials'
+                    ? 'Enter both your email address and password.'
+                    : 'That sign-in attempt could not be verified. Please try again below.'}
               </div>
             ) : null}
             <LoginForm />
