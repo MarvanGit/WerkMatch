@@ -111,7 +111,12 @@ function Brand() {
   );
 }
 
-export default async function Home() {
+type HomeProps = {
+  searchParams: Promise<{ job?: string }>;
+};
+
+export default async function Home({ searchParams }: HomeProps) {
+  const { job: selectedJobId } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -213,7 +218,8 @@ export default async function Home() {
       },
     ];
   });
-  const selectedJob = jobs[0] ?? null;
+  const selectedJob =
+    jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? null;
   const schedule = scheduleResult.data;
   const intervalHours = Math.max(
     1,
@@ -437,56 +443,65 @@ export default async function Home() {
                     </CardContent>
                   </Card>
                 ) : null}
-                {jobs.map((job, index) => (
-                  <Card
+                {jobs.map((job) => (
+                  <Link
                     key={job.id}
-                    className={`cursor-pointer border-0 transition-all hover:-translate-y-0.5 hover:shadow-md ${
-                      index === 0
-                        ? 'bg-primary/[0.055] ring-1 ring-primary/25'
-                        : 'bg-card/90'
-                    }`}
+                    aria-label={`View ${job.title} at ${job.company}`}
+                    className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    href={`/?job=${job.id}`}
+                    scroll={false}
                   >
-                    <CardHeader>
-                      <div className="flex min-w-0 gap-4">
-                        <ScoreRing score={job.score} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <CardTitle className="truncate text-[15px] font-semibold">
-                              {job.title}
-                            </CardTitle>
-                            <Badge
-                              className={
-                                index === 0
-                                  ? 'bg-primary/12 text-primary'
-                                  : 'bg-secondary text-secondary-foreground'
-                              }
-                              variant="ghost"
-                            >
-                              {job.status}
-                            </Badge>
+                    <Card
+                      className={`cursor-pointer border-0 transition-all hover:-translate-y-0.5 hover:shadow-md ${
+                        selectedJob?.id === job.id
+                          ? 'bg-primary/[0.055] ring-1 ring-primary/25'
+                          : 'bg-card/90'
+                      }`}
+                    >
+                      <CardHeader>
+                        <div className="flex min-w-0 gap-4">
+                          <ScoreRing score={job.score} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <CardTitle className="truncate text-[15px] font-semibold">
+                                {job.title}
+                              </CardTitle>
+                              <Badge
+                                className={
+                                  selectedJob?.id === job.id
+                                    ? 'bg-primary/12 text-primary'
+                                    : 'bg-secondary text-secondary-foreground'
+                                }
+                                variant="ghost"
+                              >
+                                {job.status}
+                              </Badge>
+                            </div>
+                            <CardDescription className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <span>{job.company}</span>
+                              <span className="inline-flex items-center gap-1">
+                                <MapPin className="size-3.5" />
+                                {job.location_text} · {job.work_mode}
+                              </span>
+                              <span>
+                                {formatRelativeTime(job.first_seen_at)}
+                              </span>
+                            </CardDescription>
                           </div>
-                          <CardDescription className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <span>{job.company}</span>
-                            <span className="inline-flex items-center gap-1">
-                              <MapPin className="size-3.5" />
-                              {job.location_text} · {job.work_mode}
-                            </span>
-                            <span>{formatRelativeTime(job.first_seen_at)}</span>
-                          </CardDescription>
                         </div>
-                      </div>
-                      <CardAction>
-                        <ChevronRight className="size-4 text-muted-foreground" />
-                      </CardAction>
-                    </CardHeader>
-                    <CardContent className="flex flex-wrap gap-1.5 pl-20">
-                      {job.tags.map((tag) => (
-                        <Badge key={tag} variant="outline">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </CardContent>
-                  </Card>
+                        <CardAction>
+                          <ChevronRight className="size-4 text-muted-foreground" />
+                        </CardAction>
+                      </CardHeader>
+                      <CardContent className="flex flex-wrap gap-1.5 pl-20">
+                        {job.tags.map((tag) => (
+                          <Badge key={tag} variant="outline">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  </Link>
                 ))}
               </div>
             </div>

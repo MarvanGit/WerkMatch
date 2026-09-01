@@ -1,0 +1,40 @@
+name: Scheduled WerkMatch search
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+      timezone: 'Europe/Berlin'
+  workflow_dispatch:
+
+concurrency:
+  group: scheduled-werkmatch-search
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run due searches
+        run: node --experimental-strip-types scripts/run-scheduled-search.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+          OPENCODE_MATCH_MODEL: gpt-5.6-luna
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MATCH_NOTIFICATION_THRESHOLD: '75'
+          FORCE_SEARCH: ${{ github.event_name == 'workflow_dispatch' }}

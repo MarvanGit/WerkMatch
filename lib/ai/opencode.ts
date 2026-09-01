@@ -1,4 +1,4 @@
-import { matchEvaluationOutputSchema } from '@/lib/domain/contracts';
+import { matchEvaluationOutputSchema } from '../domain/contracts.ts';
 
 type CandidateFact = {
   fact_key: string;
