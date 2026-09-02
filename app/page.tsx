@@ -31,6 +31,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { RunSearchButton } from '@/components/run-search-button';
+import { GenerateDocumentsButton } from '@/components/generate-documents-button';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -573,14 +574,7 @@ export default async function Home({ searchParams }: HomeProps) {
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 border-t border-border/70 pt-5">
-                    <Button
-                      className="col-span-2 h-10 gap-2 shadow-sm"
-                      disabled
-                      title="Document generation is the next implementation stage."
-                    >
-                      <Sparkles />
-                      Generate tailored documents
-                    </Button>
+                    <GenerateDocumentsButton jobId={selectedJob.id} />
                     <a
                       className={buttonVariants({
                         variant: 'outline',

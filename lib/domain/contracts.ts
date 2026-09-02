@@ -39,9 +39,23 @@ export const matchEvaluationOutputSchema = z.object({
 });
 
 export const tailoringPlanOutputSchema = z.object({
-  profileSummary: z.string().min(1).max(1_200),
+  documentLanguage: z.enum(['de', 'en']),
   selectedFactIds: z.array(z.string().min(1)).max(30),
-  sectionOrder: z.array(z.string().min(1)).max(12),
+  sectionOrder: z
+    .array(
+      z.enum([
+        'skills',
+        'experience',
+        'education',
+        'project',
+        'certification',
+        'award',
+        'activity',
+        'language',
+        'interest',
+      ]),
+    )
+    .max(9),
   rewrittenBullets: z
     .array(
       z.object({
@@ -51,10 +65,29 @@ export const tailoringPlanOutputSchema = z.object({
     )
     .max(24),
   emphasizedSkillFactIds: z.array(z.string().min(1)).max(12),
+  localizedFacts: z
+    .array(
+      z.object({
+        sourceFactId: z.string().min(1),
+        title: z.string().min(1).max(160),
+        subtitle: z.string().max(180),
+        location: z.string().max(100),
+        summary: z.string().min(1).max(1_000),
+      }),
+    )
+    .max(30),
   coverLetter: z.object({
     subject: z.string().min(1).max(300),
     salutation: z.string().min(1).max(200),
-    paragraphs: z.array(z.string().min(1).max(2_000)).min(2).max(6),
+    paragraphs: z
+      .array(
+        z.object({
+          text: z.string().min(1).max(2_000),
+          evidenceFactIds: z.array(z.string().min(1)).min(1).max(8),
+        }),
+      )
+      .min(3)
+      .max(6),
     closing: z.string().min(1).max(400),
   }),
 });

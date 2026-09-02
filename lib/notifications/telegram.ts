@@ -43,3 +43,35 @@ export async function sendTelegramMatch(
     );
   }
 }
+
+export async function sendTelegramDocumentsReady(
+  chatId: string,
+  document: { title: string; company: string },
+): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error('TELEGRAM_BOT_TOKEN is not configured.');
+
+  const response = await fetch(
+    `https://api.telegram.org/bot${token}/sendMessage`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: [
+          '📄 Your WerkMatch documents are ready',
+          document.title,
+          document.company,
+          '',
+          'Open the dashboard to download the tailored CV and cover letter.',
+        ].join('\n'),
+        disable_web_page_preview: true,
+      }),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Telegram document notification failed with status ${response.status}.`,
+    );
+  }
+}
