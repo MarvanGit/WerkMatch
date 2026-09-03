@@ -40,7 +40,7 @@ export const matchEvaluationOutputSchema = z.object({
 
 export const tailoringPlanOutputSchema = z.object({
   documentLanguage: z.enum(['de', 'en']),
-  selectedFactIds: z.array(z.string().min(1)).max(30),
+  factPriorityIds: z.array(z.string().min(1)).max(60),
   sectionOrder: z
     .array(
       z.enum([
@@ -56,26 +56,6 @@ export const tailoringPlanOutputSchema = z.object({
       ]),
     )
     .max(9),
-  rewrittenBullets: z
-    .array(
-      z.object({
-        sourceFactId: z.string().min(1),
-        text: z.string().min(1).max(500),
-      }),
-    )
-    .max(24),
-  emphasizedSkillFactIds: z.array(z.string().min(1)).max(12),
-  localizedFacts: z
-    .array(
-      z.object({
-        sourceFactId: z.string().min(1),
-        title: z.string().min(1).max(160),
-        subtitle: z.string().max(180),
-        location: z.string().max(100),
-        summary: z.string().min(1).max(1_000),
-      }),
-    )
-    .max(30),
   coverLetter: z.object({
     subject: z.string().min(1).max(300),
     salutation: z.string().min(1).max(200),

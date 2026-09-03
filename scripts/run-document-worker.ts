@@ -170,7 +170,9 @@ async function processRequest(request: {
         status: 'compiling',
         tailoring_plan: plan,
         verified_content: {
-          factIds: plan.selectedFactIds,
+          templatePreserving: true,
+          factIds: facts.map((fact) => fact.fact_key),
+          factPriorityIds: plan.factPriorityIds,
           evidenceFactIds: [
             ...new Set(
               plan.coverLetter.paragraphs.flatMap(

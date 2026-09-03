@@ -20,15 +20,16 @@ WerkMatch is a private job-search workspace for technical working-student roles.
 - Private Supabase Storage buckets for candidate assets and generated documents
 - OpenCode Go for structured job matching and on-demand document tailoring
 - Telegram Bot API for notifications
-- Arbeitnow public API as the first structured job source
+- Arbeitnow as a structured job source
+- Direct HTML scraping of selected Bavarian company career boards on Personio
 - OpenCode Go Responses API for evidence-locked match evaluation
-- A separate worker will handle browser-only sources and LaTeX compilation
+- A scheduled worker for on-demand LaTeX compilation
 
 ## Live search flow
 
 The dashboard's **Run search** action currently:
 
-1. reads recent Arbeitnow listings;
+1. reads recent Arbeitnow listings and scrapes selected company career boards;
 2. rejects non-student, non-technical, and location-ineligible roles before AI use;
 3. sends only candidate listings and verified candidate facts to OpenCode Go;
 4. stores structured scores and exact candidate-fact references in Supabase; and
@@ -36,6 +37,13 @@ The dashboard's **Run search** action currently:
 
 Candidate facts are never sent to the job source. OpenCode and Telegram are only
 called during an authorized search run.
+
+## Document generation
+
+The uploaded LaTeX CV is the immutable content source. WerkMatch preserves every
+line and the original styling, and only reorders whole sections within the
+template's existing page boundaries. OpenCode writes the job-specific cover
+letter from verified candidate facts; it cannot remove or rewrite CV content.
 
 ## Local setup
 
@@ -53,5 +61,3 @@ npm run dev
 npm run lint
 npm run build
 ```
-
-The application is not production-ready until additional source adapters, document verification, LaTeX compilation, recurring cloud scheduling, and deployment secrets are completed.

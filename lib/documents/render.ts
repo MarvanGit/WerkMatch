@@ -1,53 +1,29 @@
-import type { TailoringPlanOutput } from '../domain/contracts.ts';
 import type { CandidateFactForDocuments } from '../ai/documents.ts';
+import type { TailoringPlanOutput } from '../domain/contracts.ts';
 
 type Language = 'de' | 'en';
 
-const sectionLabels: Record<Language, Record<string, string>> = {
-  de: {
-    skills: 'Fähigkeiten',
-    experience: 'Berufserfahrung',
-    education: 'Ausbildung',
-    project: 'Projekte',
-    certification: 'Zertifikate',
-    award: 'Stipendien & Auszeichnungen',
-    activity: 'Engagement & außeruniversitäre Aktivitäten',
-    language: 'Sprachen',
-    interest: 'Interessen',
-  },
-  en: {
-    skills: 'Skills',
-    experience: 'Professional Experience',
-    education: 'Education',
-    project: 'Projects',
-    certification: 'Certifications',
-    award: 'Scholarships & Awards',
-    activity: 'Activities',
-    language: 'Languages',
-    interest: 'Interests',
-  },
-};
-
-const skillLabels: Record<Language, Record<string, string>> = {
-  de: {
-    'skills.programming-languages': 'Programmiersprachen',
-    'skills.full-stack': 'Full-Stack Entwicklung',
-    'skills.databases': 'Datenbanken',
-    'skills.devops': 'DevOps & Container',
-    'skills.testing': 'Testing & Qualitätssicherung',
-    'skills.software-engineering': 'Software Engineering',
-    'skills.work-style': 'Arbeitsweise',
-  },
-  en: {
-    'skills.programming-languages': 'Programming Languages',
-    'skills.full-stack': 'Full-Stack Development',
-    'skills.databases': 'Databases',
-    'skills.devops': 'DevOps & Containers',
-    'skills.testing': 'Testing & Quality Assurance',
-    'skills.software-engineering': 'Software Engineering',
-    'skills.work-style': 'Working Style',
-  },
-};
+const categoryBySectionLabel = new Map<string, string>([
+  ['fähigkeiten', 'skills'],
+  ['skills', 'skills'],
+  ['berufserfahrung', 'experience'],
+  ['professional experience', 'experience'],
+  ['experience', 'experience'],
+  ['ausbildung', 'education'],
+  ['education', 'education'],
+  ['projekte', 'project'],
+  ['projects', 'project'],
+  ['zertifikate', 'certification'],
+  ['certifications', 'certification'],
+  ['stipendien & auszeichnungen', 'award'],
+  ['scholarships & awards', 'award'],
+  ['engagement & außeruniversitäre aktivitäten', 'activity'],
+  ['activities', 'activity'],
+  ['sprachen', 'language'],
+  ['languages', 'language'],
+  ['interessen', 'interest'],
+  ['interests', 'interest'],
+]);
 
 export function renderTailoredDocuments(input: {
   masterTemplate: string;
@@ -55,35 +31,11 @@ export function renderTailoredDocuments(input: {
   plan: TailoringPlanOutput;
 }) {
   const template = makeTemplateEngineNeutral(input.masterTemplate);
-  const firstSectionIndex = template.search(
-    /\\section\{(?:Fähigkeiten|Skills)\}/,
-  );
-  const endDocumentIndex = template.lastIndexOf('\\end{document}');
-  if (firstSectionIndex < 0 || endDocumentIndex < 0) {
-    throw new Error(
-      'The LaTeX template does not contain the expected document markers.',
-    );
-  }
-
-  const header = template.slice(0, firstSectionIndex).trimEnd();
-  const selectedFacts = selectFacts(input.facts, input.plan);
-  const cvSections = orderedCategories(input.plan).flatMap((category) => {
-    const facts = selectedFacts.filter((fact) => fact.category === category);
-    return facts.length
-      ? [
-          renderSection(
-            category,
-            facts,
-            input.plan,
-            input.plan.documentLanguage,
-          ),
-        ]
-      : [];
-  });
-
-  const cvTex = `${header}\n\n${cvSections.join('\n\n')}\n\n\\end{document}\n`;
+  assertAllFactsPreserved(input.facts, input.plan);
+  const structure = splitTemplate(template);
+  const cvTex = reorderSections(structure, input.plan.sectionOrder);
   const coverLetterTex = renderCoverLetter(
-    header,
+    structure.header.trimEnd(),
     input.plan,
     input.plan.documentLanguage,
   );
@@ -98,152 +50,122 @@ function makeTemplateEngineNeutral(template: string): string {
   );
 }
 
-function orderedCategories(plan: TailoringPlanOutput): string[] {
-  const order = [...new Set(plan.sectionOrder)];
-  for (const required of [
-    'skills',
-    'experience',
-    'education',
-    'project',
-    'language',
-  ]) {
-    if (!order.includes(required as (typeof order)[number])) {
-      order.push(required as (typeof order)[number]);
-    }
-  }
-  return order;
-}
+type TemplateSection = {
+  category: string | null;
+  originalIndex: number;
+  pageGroup: number;
+  source: string;
+};
 
-function selectFacts(
-  facts: CandidateFactForDocuments[],
-  plan: TailoringPlanOutput,
-): CandidateFactForDocuments[] {
-  const selected = new Set(plan.selectedFactIds);
-  const requiredCategories = new Set(['education', 'language']);
-  const chosen = facts.filter(
-    (fact) =>
-      selected.has(fact.fact_key) || requiredCategories.has(fact.category),
+type TemplateStructure = {
+  header: string;
+  sections: TemplateSection[];
+  pageGroupPrefixes: Map<number, string>;
+  footer: string;
+};
+
+function splitTemplate(template: string): TemplateStructure {
+  const endDocumentIndex = template.lastIndexOf('\\end{document}');
+  if (endDocumentIndex < 0) {
+    throw new Error('The LaTeX template has no \\end{document} marker.');
+  }
+  const sectionMatches = [
+    ...template.slice(0, endDocumentIndex).matchAll(/\\section\{([^{}]+)\}/g),
+  ];
+  if (!sectionMatches.length) {
+    throw new Error('The LaTeX template has no section markers.');
+  }
+
+  const starts = sectionMatches.map((match) =>
+    includeLeadingPageBreak(template, match.index ?? 0),
   );
-  const categories = new Set(chosen.map((fact) => fact.category));
-  for (const fallbackCategory of ['skills', 'experience', 'project']) {
-    if (!categories.has(fallbackCategory)) {
-      chosen.push(
-        ...facts.filter((fact) => fact.category === fallbackCategory),
+  let pageGroup = 0;
+  const pageGroupPrefixes = new Map<number, string>([[0, '']]);
+  const sections = sectionMatches.map((match, index) => {
+    const sectionIndex = match.index ?? 0;
+    if (index > 0 && starts[index] < sectionIndex) {
+      pageGroup += 1;
+      pageGroupPrefixes.set(
+        pageGroup,
+        template.slice(starts[index], sectionIndex),
       );
     }
-  }
-
-  const selectedRank = new Map(
-    plan.selectedFactIds.map((factId, index) => [factId, index]),
-  );
-  const emphasizedRank = new Map(
-    plan.emphasizedSkillFactIds.map((factId, index) => [factId, index]),
-  );
-  return [
-    ...new Map(chosen.map((fact) => [fact.fact_key, fact])).values(),
-  ].sort((left, right) => {
-    if (left.category === 'skills' && right.category === 'skills') {
-      return (
-        (emphasizedRank.get(left.fact_key) ?? 1_000) -
-          (emphasizedRank.get(right.fact_key) ?? 1_000) ||
-        left.order_index - right.order_index
-      );
-    }
-    return (
-      (selectedRank.get(left.fact_key) ?? 1_000) -
-        (selectedRank.get(right.fact_key) ?? 1_000) ||
-      left.order_index - right.order_index
-    );
-  });
-}
-
-function renderSection(
-  category: string,
-  facts: CandidateFactForDocuments[],
-  plan: TailoringPlanOutput,
-  language: Language,
-): string {
-  const label = sectionLabels[language][category] ?? category;
-  const entries = facts.map((fact) => renderFact(fact, plan, language));
-  return [
-    category === 'project' ? '\\newpage' : '',
-    `\\section{${escapeLatex(label)}}`,
-    '\\resumeSubHeadingListStart',
-    ...entries,
-    '\\resumeSubHeadingListEnd',
-  ].join('\n');
-}
-
-function renderFact(
-  fact: CandidateFactForDocuments,
-  plan: TailoringPlanOutput,
-  language: Language,
-): string {
-  const presentation = plan.localizedFacts.find(
-    (item) => item.sourceFactId === fact.fact_key,
-  );
-  if (fact.category === 'skills') {
-    const label = skillLabels[language][fact.fact_key] ?? fact.title;
-    return `\\resumeSubItem{${escapeLatex(label)}}{${escapeLatex(detailItems(fact).join(', ') || fact.summary)}}`;
-  }
-  if (fact.category === 'language' || fact.category === 'interest') {
-    return `\\resumeSubItem{${escapeLatex(presentation?.title ?? fact.title)}}{${escapeLatex(presentation?.summary ?? fact.summary)}}`;
-  }
-
-  const details = fact.details;
-  const heading =
-    presentation?.title ||
-    stringDetail(details, 'organization') ||
-    stringDetail(details, 'institution') ||
-    fact.title;
-  const location =
-    presentation?.location ||
-    stringDetail(details, 'location') ||
-    (fact.category === 'certification' ? stringDetail(details, 'issuer') : '');
-  const subtitle =
-    presentation?.subtitle ||
-    stringDetail(details, 'role') ||
-    stringDetail(details, 'degree') ||
-    (fact.category === 'certification' ? stringDetail(details, 'status') : '');
-  const dates = formatDates(
-    stringDetail(details, 'start'),
-    stringDetail(details, 'end') || stringDetail(details, 'year'),
-    language,
-  );
-  const rewritten = plan.rewrittenBullets
-    .filter((bullet) => bullet.sourceFactId === fact.fact_key)
-    .map((bullet) => bullet.text);
-  const originalHighlights = arrayDetail(details, 'highlights');
-  const modules = arrayDetail(details, 'modules');
-  const technologies = arrayDetail(details, 'technologies');
-  const bullets = rewritten.length
-    ? rewritten
-    : originalHighlights.length
-      ? originalHighlights
-      : modules.length
-        ? [
-            `${language === 'de' ? 'Relevante Module' : 'Relevant modules'}: ${modules.join(', ')}`,
-          ]
-        : [presentation?.summary ?? fact.summary];
-  if (technologies.length && !rewritten.length) {
-    bullets.push(
-      `${language === 'de' ? 'Technologien' : 'Technologies'}: ${technologies.join(', ')}`,
-    );
-  }
-
-  return [
-    '\\resumeSubheading',
-    `  {${escapeLatex(heading)}}{${escapeLatex(location)}}`,
-    `  {${escapeLatex(subtitle)}}{${escapeLatex(dates)}}`,
-    '\\resumeItemListStart',
-    ...bullets
-      .slice(0, 4)
-      .map(
-        (bullet) =>
-          `  \\resumeItem{${language === 'de' ? 'Relevanz' : 'Relevance'}}{${escapeLatex(bullet)}}`,
+    return {
+      category: categoryForLabel(match[1]),
+      originalIndex: index,
+      pageGroup,
+      source: template.slice(
+        sectionIndex,
+        index + 1 < starts.length ? starts[index + 1] : endDocumentIndex,
       ),
-    '\\resumeItemListEnd',
-  ].join('\n');
+    };
+  });
+  return {
+    header: template.slice(0, starts[0]),
+    sections,
+    pageGroupPrefixes,
+    footer: template.slice(endDocumentIndex),
+  };
+}
+
+function includeLeadingPageBreak(template: string, sectionIndex: number) {
+  const prefix = template.slice(0, sectionIndex);
+  const pageBreak = /(\r?\n[ \t]*\\newpage[ \t]*\r?\n?[ \t]*)$/.exec(prefix);
+  return pageBreak?.index ?? sectionIndex;
+}
+
+function categoryForLabel(label: string): string | null {
+  const normalized = label
+    .replace(/\\&/g, '&')
+    .replace(/~/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleLowerCase('de-DE');
+  return categoryBySectionLabel.get(normalized) ?? null;
+}
+
+function reorderSections(
+  structure: TemplateStructure,
+  requestedOrder: string[],
+) {
+  const rank = new Map(
+    [...new Set(requestedOrder)].map((category, index) => [category, index]),
+  );
+  const pageGroups = [
+    ...new Set(structure.sections.map((section) => section.pageGroup)),
+  ];
+  const orderedBody = pageGroups
+    .map((pageGroup) => {
+      const ordered = structure.sections
+        .filter((section) => section.pageGroup === pageGroup)
+        .sort((left, right) => {
+          const leftRank = left.category
+            ? (rank.get(left.category) ?? requestedOrder.length)
+            : requestedOrder.length + 1;
+          const rightRank = right.category
+            ? (rank.get(right.category) ?? requestedOrder.length)
+            : requestedOrder.length + 1;
+          return (
+            leftRank - rightRank || left.originalIndex - right.originalIndex
+          );
+        });
+      return `${structure.pageGroupPrefixes.get(pageGroup) ?? ''}${ordered.map((section) => section.source).join('')}`;
+    })
+    .join('');
+  return `${structure.header}${orderedBody}${structure.footer}`;
+}
+
+function assertAllFactsPreserved(
+  facts: CandidateFactForDocuments[],
+  plan: TailoringPlanOutput,
+) {
+  const priorityIds = new Set(plan.factPriorityIds);
+  if (
+    priorityIds.size !== facts.length ||
+    facts.some((fact) => !priorityIds.has(fact.fact_key))
+  ) {
+    throw new Error('The tailoring plan must include every verified fact.');
+  }
 }
 
 function renderCoverLetter(
@@ -264,32 +186,6 @@ function renderCoverLetter(
     .map((paragraph) => escapeLatex(paragraph.text))
     .join('\n\n');
   return `${header}\n\n\\begin{flushright}\n${escapeLatex(dateLabel)}\n\\end{flushright}\n\n\\vspace{8pt}\n\\textbf{${escapeLatex(plan.coverLetter.subject)}}\n\n\\vspace{10pt}\n${escapeLatex(plan.coverLetter.salutation)}\n\n${paragraphs}\n\n${escapeLatex(plan.coverLetter.closing)}\n\n\\vspace{18pt}\nMarwan Abdelsamad\n\n\\end{document}\n`;
-}
-
-function detailItems(fact: CandidateFactForDocuments): string[] {
-  return arrayDetail(fact.details, 'items');
-}
-
-function stringDetail(details: Record<string, unknown>, key: string): string {
-  return typeof details[key] === 'string' ? details[key] : '';
-}
-
-function arrayDetail(details: Record<string, unknown>, key: string): string[] {
-  return Array.isArray(details[key])
-    ? details[key].filter((value): value is string => typeof value === 'string')
-    : [];
-}
-
-function formatDates(start: string, end: string, language: Language): string {
-  const present = language === 'de' ? 'heute' : 'present';
-  const formatPart = (value: string) => {
-    if (!value) return '';
-    if (value.toLowerCase() === 'present') return present;
-    const match = /^(\d{4})-(\d{2})$/.exec(value);
-    return match ? `${match[2]}/${match[1]}` : value;
-  };
-  const parts = [formatPart(start), formatPart(end)].filter(Boolean);
-  return parts.join(' -- ');
 }
 
 export function escapeLatex(value: string): string {
