@@ -85,7 +85,7 @@ export default async function JobsPage() {
             <Link
               key={match.id}
               className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              href={`/?job=${match.id}`}
+              href={`/jobs/${match.id}`}
             >
               <Card className="bg-card/90 transition-all hover:-translate-y-0.5 hover:shadow-md">
                 <CardHeader>

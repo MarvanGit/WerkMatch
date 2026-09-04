@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleUserRound,
+  ClipboardCheck,
   Clock3,
   FileText,
   LogOut,
@@ -301,6 +302,16 @@ export default async function Home({ searchParams }: HomeProps) {
               variant: 'ghost',
               className: 'h-10 w-full justify-start gap-3 px-3',
             })}
+            href="/applications"
+          >
+            <ClipboardCheck />
+            Applications
+          </Link>
+          <Link
+            className={buttonVariants({
+              variant: 'ghost',
+              className: 'h-10 w-full justify-start gap-3 px-3',
+            })}
             href="/documents"
           >
             <FileText />
@@ -492,8 +503,7 @@ export default async function Home({ searchParams }: HomeProps) {
                     key={job.id}
                     aria-label={`View ${job.title} at ${job.company}`}
                     className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    href={`/?job=${job.id}`}
-                    scroll={false}
+                    href={`/jobs/${job.id}`}
                   >
                     <Card
                       className={`cursor-pointer border-0 transition-all hover:-translate-y-0.5 hover:shadow-md ${
@@ -618,6 +628,15 @@ export default async function Home({ searchParams }: HomeProps) {
 
                   <div className="grid grid-cols-2 gap-2 border-t border-border/70 pt-5">
                     <GenerateDocumentsButton jobId={selectedJob.id} />
+                    <Link
+                      className={buttonVariants({
+                        className: 'col-span-2 h-10',
+                      })}
+                      href={`/jobs/${selectedJob.id}`}
+                    >
+                      View full details
+                      <ChevronRight />
+                    </Link>
                     <a
                       className={buttonVariants({
                         variant: 'outline',

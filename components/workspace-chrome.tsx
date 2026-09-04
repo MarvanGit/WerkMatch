@@ -3,6 +3,7 @@
 import {
   Bell,
   BriefcaseBusiness,
+  ClipboardCheck,
   FileText,
   Menu,
   Plus,
@@ -28,6 +29,7 @@ import { cn } from '@/lib/utils';
 
 const navigation = [
   { href: '/', label: 'Job inbox', icon: BriefcaseBusiness },
+  { href: '/applications', label: 'Applications', icon: ClipboardCheck },
   { href: '/documents', label: 'Documents', icon: FileText },
   { href: '/sources', label: 'Sources', icon: Radio },
   { href: '/profile', label: 'Match profile', icon: SlidersHorizontal },
