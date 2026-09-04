@@ -20,20 +20,67 @@ export function renderTailoredDocuments(input: {
   plan: TailoringPlanOutput;
 }) {
   assertAllFactsPreserved(input.facts, input.plan);
-  const cvTex = reorderSkillItems(
-    input.masterTemplate,
-    input.facts,
-    input.plan.factPriorityIds,
+  const cvTex = prepareLatexForTectonic(
+    reorderSkillItems(
+      input.masterTemplate,
+      input.facts,
+      input.plan.factPriorityIds,
+    ),
   );
-  const coverLetterTex = renderCoverLetter(
-    input.coverLetterTemplate ?? extractTemplateHeader(input.masterTemplate),
-    input.plan,
-    input.plan.documentLanguage,
-    input.job,
-    Boolean(input.coverLetterTemplate),
+  const coverLetterTex = prepareLatexForTectonic(
+    renderCoverLetter(
+      input.coverLetterTemplate ?? extractTemplateHeader(input.masterTemplate),
+      input.plan,
+      input.plan.documentLanguage,
+      input.job,
+      Boolean(input.coverLetterTemplate),
+    ),
   );
 
   return { cvTex, coverLetterTex };
+}
+
+export function prepareLatexForTectonic(source: string): string {
+  const driverOptions = new Set([
+    'pdftex',
+    'dvips',
+    'dvipdfm',
+    'dvipdfmx',
+    'xetex',
+    'luatex',
+  ]);
+
+  return source
+    .replace(
+      /\\usepackage\s*\[([^\]]+)\]\s*\{([^{}]+)\}/g,
+      (declaration, options: string, packages: string) => {
+        const retainedOptions = options
+          .split(',')
+          .map((option) => option.trim())
+          .filter((option) => !driverOptions.has(option.toLowerCase()));
+        if (retainedOptions.length === options.split(',').length) {
+          return declaration;
+        }
+        return retainedOptions.length
+          ? `\\usepackage[${retainedOptions.join(',')}]{${packages}}`
+          : `\\usepackage{${packages}}`;
+      },
+    )
+    .replace(
+      /\\PassOptionsToPackage\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g,
+      (declaration, options: string, packages: string) => {
+        const retainedOptions = options
+          .split(',')
+          .map((option) => option.trim())
+          .filter((option) => !driverOptions.has(option.toLowerCase()));
+        if (retainedOptions.length === options.split(',').length) {
+          return declaration;
+        }
+        return retainedOptions.length
+          ? `\\PassOptionsToPackage{${retainedOptions.join(',')}}{${packages}}`
+          : '';
+      },
+    );
 }
 
 function extractTemplateHeader(template: string): string {

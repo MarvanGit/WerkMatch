@@ -12,54 +12,94 @@ import {
   type CandidateFactForDocuments,
 } from '../lib/ai/documents.ts';
 import { renderTailoredDocuments } from '../lib/documents/render.ts';
+import { tailoringPlanOutputSchema } from '../lib/domain/contracts.ts';
 import { sendTelegramDocumentsReady } from '../lib/notifications/telegram.ts';
 
 const supabaseUrl = requiredEnvironmentVariable('NEXT_PUBLIC_SUPABASE_URL');
 const supabaseSecretKey = requiredEnvironmentVariable('SUPABASE_SECRET_KEY');
 const tectonicBinary = process.env.TECTONIC_BIN ?? 'tectonic';
+const maxRequestsPerRun = Math.min(
+  4,
+  Math.max(1, Number(process.env.DOCUMENT_WORKER_BATCH_SIZE ?? 4)),
+);
 const supabase = createClient(supabaseUrl, supabaseSecretKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-const { data: pending, error: pendingError } = await supabase
-  .from('generation_requests')
-  .select(
-    'id,user_id,job_id,match_evaluation_id,status,profile_version,template_version',
-  )
-  .eq('status', 'queued')
-  .order('requested_at')
-  .limit(1)
-  .maybeSingle();
-if (pendingError) throw pendingError;
-
-if (!pending) {
-  console.log('WerkMatch document worker found no queued requests.');
-} else {
-  const { data: request, error: claimError } = await supabase
-    .from('generation_requests')
-    .update({ status: 'generating', error_message: null })
-    .eq('id', pending.id)
-    .eq('status', 'queued')
-    .select(
-      'id,user_id,job_id,match_evaluation_id,status,profile_version,template_version',
-    )
-    .maybeSingle();
-  if (claimError) throw claimError;
-  if (!request) {
-    console.log('The queued document request was claimed by another worker.');
-  } else {
-    await processRequest(request);
-  }
-}
-
-async function processRequest(request: {
+type GenerationRequest = {
   id: string;
   user_id: string;
   job_id: string;
   match_evaluation_id: string | null;
   profile_version: number;
   template_version: number;
-}) {
+  tailoring_plan: unknown;
+  model_id: string | null;
+};
+
+await requeueStaleRequests();
+let processed = 0;
+let failed = 0;
+for (let index = 0; index < maxRequestsPerRun; index += 1) {
+  const request = await claimNextRequest();
+  if (!request) break;
+  processed += 1;
+  if (!(await processRequest(request))) failed += 1;
+}
+
+if (processed === 0) {
+  console.log('WerkMatch document worker found no queued requests.');
+} else {
+  console.log(
+    `WerkMatch document worker processed ${processed} request${processed === 1 ? '' : 's'}; ${failed} failed.`,
+  );
+}
+if (failed > 0) process.exitCode = 1;
+
+async function requeueStaleRequests() {
+  const staleBefore = new Date(Date.now() - 30 * 60_000).toISOString();
+  const { error } = await supabase
+    .from('generation_requests')
+    .update({
+      status: 'queued',
+      error_message: 'The previous worker stopped unexpectedly; retrying.',
+    })
+    .in('status', ['generating', 'compiling'])
+    .lt('updated_at', staleBefore);
+  if (error) throw error;
+}
+
+async function claimNextRequest(): Promise<GenerationRequest | null> {
+  const { data: pending, error: pendingError } = await supabase
+    .from('generation_requests')
+    .select(
+      'id,user_id,job_id,match_evaluation_id,status,profile_version,template_version,tailoring_plan,model_id',
+    )
+    .eq('status', 'queued')
+    .order('requested_at')
+    .limit(1)
+    .maybeSingle();
+  if (pendingError) throw pendingError;
+  if (!pending) return null;
+
+  const { data: request, error: claimError } = await supabase
+    .from('generation_requests')
+    .update({ status: 'generating', error_message: null })
+    .eq('id', pending.id)
+    .eq('status', 'queued')
+    .select(
+      'id,user_id,job_id,match_evaluation_id,status,profile_version,template_version,tailoring_plan,model_id',
+    )
+    .maybeSingle();
+  if (claimError) throw claimError;
+  if (!request) {
+    console.log('The queued document request was claimed by another worker.');
+    return null;
+  }
+  return request as GenerationRequest;
+}
+
+async function processRequest(request: GenerationRequest): Promise<boolean> {
   const workingDirectory = await mkdtemp(join(tmpdir(), 'werkmatch-docs-'));
   try {
     const [
@@ -140,20 +180,28 @@ async function processRequest(request: {
       coverLetterTemplate = await coverLetterBlob.text();
     }
 
-    const { plan, model } = await createTailoringPlan({
-      job: {
-        title: jobResult.data.title,
-        company: jobResult.data.company,
-        description: jobResult.data.description,
-        locationText: jobResult.data.location_text,
-        workMode: jobResult.data.work_mode,
-      },
-      facts,
-      matchSummary: evaluationResult.data?.summary ?? null,
-      matchReasons: Array.isArray(evaluationResult.data?.reasons)
-        ? (evaluationResult.data.reasons as string[])
-        : [],
-    });
+    const storedPlan = tailoringPlanOutputSchema.safeParse(
+      request.tailoring_plan,
+    );
+    const { plan, model } = storedPlan.success
+      ? {
+          plan: storedPlan.data,
+          model: request.model_id ?? 'stored-tailoring-plan',
+        }
+      : await createTailoringPlan({
+          job: {
+            title: jobResult.data.title,
+            company: jobResult.data.company,
+            description: jobResult.data.description,
+            locationText: jobResult.data.location_text,
+            workMode: jobResult.data.work_mode,
+          },
+          facts,
+          matchSummary: evaluationResult.data?.summary ?? null,
+          matchReasons: Array.isArray(evaluationResult.data?.reasons)
+            ? (evaluationResult.data.reasons as string[])
+            : [],
+        });
     const { cvTex, coverLetterTex } = renderTailoredDocuments({
       masterTemplate,
       coverLetterTemplate,
@@ -287,6 +335,7 @@ async function processRequest(request: {
       }
     }
     console.log('WerkMatch document request completed successfully.');
+    return true;
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Unknown document failure.';
@@ -296,7 +345,7 @@ async function processRequest(request: {
       .eq('id', request.id)
       .eq('user_id', request.user_id);
     console.error(`WerkMatch document request failed: ${message}`);
-    process.exitCode = 1;
+    return false;
   } finally {
     await rm(workingDirectory, { recursive: true, force: true });
   }

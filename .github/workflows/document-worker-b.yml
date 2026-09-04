@@ -1,0 +1,10 @@
+name: WerkMatch document queue B
+
+on:
+  schedule:
+    - cron: '22,52 * * * *'
+
+jobs:
+  process:
+    uses: ./.github/workflows/document-worker.yml
+    secrets: inherit

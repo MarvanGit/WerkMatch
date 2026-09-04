@@ -24,7 +24,7 @@ WerkMatch is a private job-search workspace for technical working-student roles.
 - Direct HTML scraping of selected Bavarian company career boards on Personio
 - Public LinkedIn guest job search pages (no authenticated LinkedIn crawling)
 - OpenCode Go Responses API for evidence-locked match evaluation
-- A scheduled worker for on-demand LaTeX compilation
+- Staggered document workers for on-demand LaTeX compilation
 
 ## Live search flow
 
@@ -54,6 +54,12 @@ rewritten. A separate cover-letter template can be stored in
 `COVER_LETTER_TEMPLATE_OBJECT_KEY`). WerkMatch preserves that template's
 sender, layout, closing, and signature, replacing only the recipient, subject,
 salutation, and evidence-bound body.
+
+Two staggered GitHub workflows check the document queue every 15 minutes. Each
+run reclaims interrupted work, processes up to four requests, reuses an existing
+tailoring plan on compilation retries, and caches installed dependencies. The
+renderer removes only explicit TeX engine driver flags such as `pdftex` before
+Tectonic compilation; CV content and styling commands remain unchanged.
 
 ## Local setup
 

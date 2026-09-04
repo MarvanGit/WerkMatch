@@ -95,7 +95,7 @@ export function GenerateDocumentsButton({ jobId }: { jobId: string }) {
   const statusMessage = generation
     ? {
         queued:
-          'Queued securely. The document worker checks every five minutes.',
+          'Queued securely. The document worker normally starts within 15 minutes.',
         generating:
           'OpenCode is selecting relevant existing skill entries and drafting the letter…',
         compiling: 'The LaTeX documents are compiling…',

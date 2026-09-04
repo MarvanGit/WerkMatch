@@ -1,9 +1,8 @@
 name: WerkMatch document worker
 
 on:
-  schedule:
-    - cron: '*/5 * * * *'
   workflow_dispatch:
+  workflow_call:
 
 concurrency:
   group: werkmatch-document-worker
@@ -15,7 +14,7 @@ permissions:
 jobs:
   generate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -24,8 +23,15 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Restore installed dependencies
+        id: dependency-cache
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
       - name: Install dependencies
-        run: npm ci
+        if: steps.dependency-cache.outputs.cache-hit != 'true'
+        run: npm ci --prefer-offline --no-audit
       - name: Install pinned Tectonic
         shell: bash
         run: |
@@ -36,7 +42,7 @@ jobs:
           echo "1a715688baf591e650c8aeb160ae934e181685eecbb38b317de30b269ac5d606  $RUNNER_TEMP/tectonic.tar.gz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/tectonic.tar.gz" -C "$RUNNER_TEMP/tectonic"
           echo "$RUNNER_TEMP/tectonic" >> "$GITHUB_PATH"
-      - name: Process one queued request
+      - name: Process queued requests
         run: node --experimental-strip-types scripts/run-document-worker.ts
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -45,3 +51,4 @@ jobs:
           OPENCODE_DOCUMENT_MODEL: gpt-5.6-luna
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DOCUMENT_WORKER_BATCH_SIZE: '4'
