@@ -10,9 +10,9 @@ import type { NormalizedSourceJob } from './types.ts';
 const guestJobsEndpoint =
   'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search';
 const searchPageSize = 10;
-const defaultMaxSearchPages = 2;
+const defaultMaxSearchPages = 3;
 const hardMaxSearchPages = 5;
-const defaultMaxCandidatePages = 24;
+const defaultMaxCandidatePages = 40;
 const hardMaxCandidatePages = 50;
 const detailConcurrency = 2;
 const maxFetchAttempts = 3;
@@ -51,6 +51,22 @@ export const defaultLinkedInBoards: LinkedInBoard[] = [
         'Working Student Cloud',
         'Werkstudent Testing',
         'Working Student QA',
+        'Werkstudent Softwareentwicklung',
+        'Working Student Software Development',
+        'Werkstudent Informatik',
+        'Working Student Computer Science',
+        'Werkstudent Programmierung',
+        'Working Student Programming',
+        'Werkstudent Backend',
+        'Working Student Backend',
+        'Werkstudent Frontend',
+        'Working Student Frontend',
+        'Werkstudent Machine Learning',
+        'Working Student Machine Learning',
+        'Werkstudent Cyber Security',
+        'Working Student Cyber Security',
+        'Werkstudent Automation',
+        'Working Student Automation',
       ].map((keywords) => ({
         keywords,
         location: 'Bavaria, Germany',
@@ -63,6 +79,15 @@ export const defaultLinkedInBoards: LinkedInBoard[] = [
         'Augsburg, Bavaria, Germany',
         'Regensburg, Bavaria, Germany',
         'Ingolstadt, Bavaria, Germany',
+        'Würzburg, Bavaria, Germany',
+        'Bamberg, Bavaria, Germany',
+        'Bayreuth, Bavaria, Germany',
+        'Coburg, Bavaria, Germany',
+        'Passau, Bavaria, Germany',
+        'Landshut, Bavaria, Germany',
+        'Rosenheim, Bavaria, Germany',
+        'Garching, Bavaria, Germany',
+        'Freising, Bavaria, Germany',
       ].map((location) => ({
         keywords: 'Werkstudent Software',
         location,
@@ -79,6 +104,12 @@ export const defaultLinkedInBoards: LinkedInBoard[] = [
       'Working Student Remote Developer',
       'Werkstudent Remote Data',
       'Working Student Remote IT',
+      'Werkstudent Remote QA',
+      'Working Student Remote QA',
+      'Werkstudent Remote Cloud',
+      'Working Student Remote Cloud',
+      'Werkstudent Remote Machine Learning',
+      'Working Student Remote Machine Learning',
     ].map((keywords) => ({
       keywords,
       location: 'Germany',

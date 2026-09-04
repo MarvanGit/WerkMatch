@@ -40,9 +40,11 @@ The dashboard's **Run search** action currently:
 Candidate facts are never sent to the job source. OpenCode and Telegram are only
 called during an authorized search run.
 
-LinkedIn searches cover Bavaria, major Bavarian cities, and Germany-wide remote
-roles. `LINKEDIN_MAX_SEARCH_PAGES` and `LINKEDIN_MAX_CANDIDATES` control the
-depth and detail-page budget; both are capped by the scraper for safety.
+LinkedIn searches cover Bavaria, Bavarian cities, and Germany-wide remote roles
+using German and English technical-role variants. `LINKEDIN_MAX_SEARCH_PAGES`
+and `LINKEDIN_MAX_CANDIDATES` control the depth and detail-page budget; both are
+capped by the scraper for safety. LinkedIn remains an unauthenticated public
+source; personal account passwords and session cookies are not collected.
 
 ## Document generation
 
