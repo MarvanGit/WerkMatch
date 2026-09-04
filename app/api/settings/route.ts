@@ -32,9 +32,20 @@ export async function POST(request: Request) {
   }
 
   const now = new Date();
+  const { data: currentSchedule } = await supabase
+    .from('search_schedules')
+    .select('last_run_at')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const cadenceAnchor = currentSchedule?.last_run_at
+    ? new Date(currentSchedule.last_run_at).getTime()
+    : now.getTime();
   const nextRunAt = input.data.enabled
     ? new Date(
-        now.getTime() + input.data.intervalMinutes * 60_000,
+        Math.max(
+          now.getTime(),
+          cadenceAnchor + input.data.intervalMinutes * 60_000,
+        ),
       ).toISOString()
     : null;
   const { error } = await supabase.from('search_schedules').upsert(
