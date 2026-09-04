@@ -11,10 +11,13 @@ const guestJobsEndpoint =
   'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search';
 const searchPageSize = 10;
 const defaultMaxSearchPages = 2;
-const maxCandidatePages = 16;
+const hardMaxSearchPages = 5;
+const defaultMaxCandidatePages = 24;
+const hardMaxCandidatePages = 50;
 const detailConcurrency = 2;
 const maxFetchAttempts = 3;
 const maxHtmlBytes = 2_000_000;
+const listingDelayMilliseconds = 150;
 
 export type LinkedInQuery = {
   keywords?: string;
@@ -33,14 +36,54 @@ export const defaultLinkedInBoards: LinkedInBoard[] = [
   {
     id: 'guest-bavaria',
     queries: [
-      { keywords: 'Werkstudent Software', location: 'Bavaria, Germany' },
-      { keywords: 'Working Student Software', location: 'Bavaria, Germany' },
-      { keywords: 'Werkstudent Developer', location: 'Bavaria, Germany' },
-      { keywords: 'Working Student Developer', location: 'Bavaria, Germany' },
-      { keywords: 'Werkstudent Data', location: 'Bavaria, Germany' },
-      { keywords: 'Working Student Data', location: 'Bavaria, Germany' },
+      ...[
+        'Werkstudent Software',
+        'Working Student Software',
+        'Werkstudent Developer',
+        'Working Student Developer',
+        'Werkstudent Data',
+        'Working Student Data',
+        'Werkstudent IT',
+        'Working Student IT',
+        'Werkstudent DevOps',
+        'Working Student DevOps',
+        'Werkstudent Cloud',
+        'Working Student Cloud',
+        'Werkstudent Testing',
+        'Working Student QA',
+      ].map((keywords) => ({
+        keywords,
+        location: 'Bavaria, Germany',
+        sortBy: 'DD',
+      })),
+      ...[
+        'Munich, Bavaria, Germany',
+        'Erlangen, Bavaria, Germany',
+        'Nuremberg, Bavaria, Germany',
+        'Augsburg, Bavaria, Germany',
+        'Regensburg, Bavaria, Germany',
+        'Ingolstadt, Bavaria, Germany',
+      ].map((location) => ({
+        keywords: 'Werkstudent Software',
+        location,
+        sortBy: 'DD',
+      })),
     ],
-    maxPages: defaultMaxSearchPages,
+  },
+  {
+    id: 'guest-germany-remote',
+    queries: [
+      'Werkstudent Remote Software',
+      'Working Student Remote Software',
+      'Werkstudent Remote Developer',
+      'Working Student Remote Developer',
+      'Werkstudent Remote Data',
+      'Working Student Remote IT',
+    ].map((keywords) => ({
+      keywords,
+      location: 'Germany',
+      sortBy: 'DD',
+    })),
   },
 ];
 
@@ -67,16 +110,34 @@ export async function fetchLinkedInJobs(
 
   const errors: string[] = [];
   const cardsById = new Map<string, LinkedInJobCard>();
+  const maxCandidates = boundedEnvironmentInteger(
+    'LINKEDIN_MAX_CANDIDATES',
+    defaultMaxCandidatePages,
+    1,
+    hardMaxCandidatePages,
+  );
+  const configuredMaxSearchPages = boundedEnvironmentInteger(
+    'LINKEDIN_MAX_SEARCH_PAGES',
+    defaultMaxSearchPages,
+    1,
+    hardMaxSearchPages,
+  );
+  let listingRequests = 0;
 
   for (const board of boards) {
     const maxPages = Math.max(
       1,
-      Math.min(board.maxPages ?? defaultMaxSearchPages, 5),
+      Math.min(
+        board.maxPages ?? configuredMaxSearchPages,
+        configuredMaxSearchPages,
+      ),
     );
 
     for (const [queryIndex, query] of board.queries.entries()) {
       try {
         for (let page = 0; page < maxPages; page += 1) {
+          if (listingRequests > 0) await delay(listingDelayMilliseconds);
+          listingRequests += 1;
           const listingHtml = await fetchHtml(
             buildSearchUrl(guestJobsEndpoint, {
               ...query,
@@ -109,7 +170,7 @@ export async function fetchLinkedInJobs(
   const candidates = [...cardsById.values()]
     .filter((card) => isTargetStudentTechRole({ title: card.title }))
     .sort(comparePublishedAt)
-    .slice(0, maxCandidatePages);
+    .slice(0, maxCandidates);
   const jobs: NormalizedSourceJob[] = [];
 
   for (const candidateBatch of chunk(candidates, detailConcurrency)) {
@@ -575,6 +636,18 @@ function parseRetryAfter(value: string | null): number | undefined {
 
 async function delay(milliseconds: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function boundedEnvironmentInteger(
+  name: string,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  const value = Number.parseInt(process.env[name] ?? '', 10);
+  return Number.isInteger(value)
+    ? Math.max(minimum, Math.min(value, maximum))
+    : fallback;
 }
 
 function comparePublishedAt(

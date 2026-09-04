@@ -39,6 +39,10 @@ The dashboard's **Run search** action currently:
 Candidate facts are never sent to the job source. OpenCode and Telegram are only
 called during an authorized search run.
 
+LinkedIn searches cover Bavaria, major Bavarian cities, and Germany-wide remote
+roles. `LINKEDIN_MAX_SEARCH_PAGES` and `LINKEDIN_MAX_CANDIDATES` control the
+depth and detail-page budget; both are capped by the scraper for safety.
+
 ## Document generation
 
 The uploaded LaTeX CV is the immutable content source. WerkMatch preserves the

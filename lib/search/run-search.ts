@@ -18,7 +18,7 @@ import {
 } from '../sources/personio.ts';
 import type { NormalizedSourceJob } from '../sources/types.ts';
 
-const maxEvaluationsPerRun = 8;
+const maxEvaluationsPerRun = 16;
 
 type SourceCollection = {
   source: string;
