@@ -5,6 +5,8 @@ export type WorkerDispatchResult =
 export async function triggerDocumentWorker(
   fetchImplementation: typeof fetch = fetch,
 ): Promise<WorkerDispatchResult> {
+  // This module is called only by the server route so the repository-scoped
+  // credential never reaches browser code.
   const token = process.env.GITHUB_WORKER_TOKEN?.trim();
   if (!token) return { triggered: false, reason: 'not_configured' };
 
