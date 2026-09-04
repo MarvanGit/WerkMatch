@@ -70,6 +70,7 @@ export function GenerateDocumentsButton({ jobId }: { jobId: string }) {
       const payload = (await response.json()) as {
         generation?: Generation;
         error?: string;
+        dispatchWarning?: string | null;
       };
       if (!response.ok || !payload.generation) {
         throw new Error(
@@ -77,6 +78,7 @@ export function GenerateDocumentsButton({ jobId }: { jobId: string }) {
         );
       }
       setGeneration(payload.generation);
+      setMessage(payload.dispatchWarning ?? null);
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : 'Could not start generation.',
@@ -95,9 +97,9 @@ export function GenerateDocumentsButton({ jobId }: { jobId: string }) {
   const statusMessage = generation
     ? {
         queued:
-          'Queued securely. The document worker normally starts within 15 minutes.',
+          'Generation was requested. The document worker is starting now…',
         generating:
-          'OpenCode is selecting relevant existing skill entries and drafting the letter…',
+          'OpenCode is prioritizing the existing CV details and drafting the letter…',
         compiling: 'The LaTeX documents are compiling…',
         ready: 'Your tailored documents are ready.',
         failed: generation.error_message ?? 'Document generation failed.',

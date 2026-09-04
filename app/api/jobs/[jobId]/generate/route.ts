@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { createClient } from '@/lib/supabase/server';
+import { triggerDocumentWorker } from '@/lib/workers/github';
 
 type RouteContext = {
   params: Promise<{ jobId: string }>;
@@ -96,7 +97,14 @@ export async function POST(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Job not found.' }, { status: 404 });
   }
   if (activeGeneration) {
-    return NextResponse.json({ generation: activeGeneration }, { status: 200 });
+    const dispatchWarning =
+      activeGeneration.status === 'queued'
+        ? await dispatchWorkerSafely()
+        : null;
+    return NextResponse.json(
+      { generation: activeGeneration, dispatchWarning },
+      { status: 200 },
+    );
   }
 
   const { data: evaluation } = await supabase
@@ -123,7 +131,22 @@ export async function POST(_request: Request, context: RouteContext) {
       { status: 500 },
     );
   }
-  return NextResponse.json({ generation }, { status: 202 });
+  const dispatchWarning = await dispatchWorkerSafely();
+  return NextResponse.json({ generation, dispatchWarning }, { status: 202 });
+}
+
+async function dispatchWorkerSafely(): Promise<string | null> {
+  try {
+    const result = await triggerDocumentWorker();
+    return result.triggered
+      ? null
+      : 'The request is queued, but immediate generation is not configured yet.';
+  } catch (error) {
+    console.error(
+      `Immediate document-worker dispatch failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+    );
+    return 'The request is queued, but the immediate worker could not start. The scheduled fallback will retry it.';
+  }
 }
 
 async function withSignedArtifacts(
