@@ -22,7 +22,7 @@ const tailoringPlanJsonSchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    documentLanguage: { type: 'string', enum: ['de', 'en'] },
+    documentLanguage: { type: 'string', enum: ['de'] },
     factPriorityIds: {
       type: 'array',
       maxItems: 60,
@@ -61,7 +61,7 @@ const tailoringPlanJsonSchema = {
   required: ['documentLanguage', 'factPriorityIds', 'coverLetter'],
 } as const;
 
-export const documentPromptVersion = 'documents-v4-template-authority';
+export const documentPromptVersion = 'documents-v5-german-cover-letter';
 
 export async function createTailoringPlan(input: {
   job: JobForDocuments;
@@ -93,8 +93,9 @@ export async function createTailoringPlan(input: {
             'Return every supplied fact_key exactly once in factPriorityIds, ordered from most to least relevant to the job.',
             'The renderer preserves the exact CV section, field, role, education, project, certificate, and activity order. It may only reorder existing technologies inside their current skill field and existing bullet points inside their current list; it never changes their wording or moves them to another field or entry.',
             'Never request or imply section, field, role, education, project, certificate, or activity reordering.',
-            'Choose German for the cover letter when the listing is primarily German and English when it is primarily English.',
-            'The cover letter is the only newly written content. Keep it concise, professional, and close to the candidate facts. Do not use inflated language, generic claims, or claims not directly supported by the cited facts.',
+            'Set documentLanguage to de. Always write the complete cover letter in clear, professional German, regardless of the language used in the job listing.',
+            'The subject, salutation, every paragraph, and closing must be German. Preserve the exact supplied job title even when that title is English.',
+            'The cover letter is the only newly written content. Keep it concise, natural, and close to the candidate facts. Do not use inflated language, generic claims, or claims not directly supported by the cited facts.',
             'Every cover-letter paragraph must cite exact supplied fact_key values and may use only claims supported by those facts.',
             'Use exactly three short paragraphs whenever possible. Keep each paragraph under 900 characters.',
             'The cover-letter subject must name the exact supplied job title. Do not invent a job ID, address, contact person, or recipient detail.',

@@ -19,26 +19,26 @@ const facts = [
 ];
 
 const plan = {
-  documentLanguage: 'en' as const,
+  documentLanguage: 'de' as const,
   factPriorityIds: ['skills.verified'],
   coverLetter: {
-    subject: 'Application for Working Student Software Engineer',
-    salutation: 'Dear Example team,',
+    subject: 'Bewerbung als Working Student Software Engineer',
+    salutation: 'Sehr geehrtes Example-Team,',
     paragraphs: [
       {
-        text: 'First verified paragraph.',
+        text: 'Erster belegter Absatz.',
         evidenceFactIds: ['skills.verified'],
       },
       {
-        text: 'Second verified paragraph.',
+        text: 'Zweiter belegter Absatz.',
         evidenceFactIds: ['skills.verified'],
       },
       {
-        text: 'Third verified paragraph.',
+        text: 'Dritter belegter Absatz.',
         evidenceFactIds: ['skills.verified'],
       },
     ],
-    closing: 'Kind regards',
+    closing: 'Mit freundlichen Grüßen',
   },
 };
 
@@ -180,7 +180,7 @@ Old closing
   }
   for (const tailored of [
     '\\textbf{Example GmbH}\\\\',
-    'Recruiting Team\\\\',
+    'Recruiting-Team\\\\',
     'Munich\\\\',
     'Bavaria\\\\',
     'Germany',
@@ -194,7 +194,10 @@ Old closing
   assert.ok(
     coverLetterTex.includes(`{\\large\\textbf{${plan.coverLetter.subject}}}`),
   );
-  assert.match(coverLetterTex, /\\vspace\{0\.5cm\}\s+Dear Example team,/);
+  assert.match(
+    coverLetterTex,
+    /\\vspace\{0\.5cm\}\s+Sehr geehrtes Example-Team,/,
+  );
   for (const removed of [
     'Old Company',
     'Old Team',
