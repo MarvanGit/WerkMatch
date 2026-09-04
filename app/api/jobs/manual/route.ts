@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { manualJobSchema } from '@/lib/domain/contracts';
 import { defaultMatchPolicy } from '@/lib/domain/match-policy';
+import { isBavariaLocation } from '@/lib/sources/job-filter';
 import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: Request) {
@@ -65,7 +66,9 @@ export async function POST(request: Request) {
         company: input.data.company,
         description: input.data.description,
         location_text: input.data.locationText,
-        region: input.data.region,
+        region:
+          input.data.region ??
+          (isBavariaLocation(input.data.locationText) ? 'Bavaria' : null),
         country: input.data.country,
         work_mode: input.data.workMode,
         employment_type: input.data.employmentType,

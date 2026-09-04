@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/card';
 import { RunSearchButton } from '@/components/run-search-button';
 import { GenerateDocumentsButton } from '@/components/generate-documents-button';
+import { MobileWorkspaceMenu } from '@/components/workspace-chrome';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -221,6 +222,12 @@ export default async function Home({ searchParams }: HomeProps) {
   });
   const selectedJob =
     jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? null;
+  const featuredJobs = selectedJob
+    ? [selectedJob, ...jobs.filter((job) => job.id !== selectedJob.id)].slice(
+        0,
+        8,
+      )
+    : jobs.slice(0, 8);
   const schedule = scheduleResult.data;
   const intervalHours = Math.max(
     1,
@@ -274,30 +281,41 @@ export default async function Home({ searchParams }: HomeProps) {
         </div>
 
         <nav className="mt-9 space-y-1" aria-label="Main navigation">
-          <Button
-            className="h-10 w-full justify-start gap-3 bg-primary/10 px-3 text-primary hover:bg-primary/15"
-            variant="ghost"
+          <Link
+            aria-current="page"
+            className={buttonVariants({
+              variant: 'ghost',
+              className:
+                'h-10 w-full justify-start gap-3 bg-primary/10 px-3 text-primary hover:bg-primary/15 hover:text-primary',
+            })}
+            href="/"
           >
             <BriefcaseBusiness />
             Job inbox
             <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[11px] text-primary-foreground">
               {strongResult.count ?? 0}
             </span>
-          </Button>
-          <Button
-            className="h-10 w-full justify-start gap-3 px-3"
-            variant="ghost"
+          </Link>
+          <Link
+            className={buttonVariants({
+              variant: 'ghost',
+              className: 'h-10 w-full justify-start gap-3 px-3',
+            })}
+            href="/documents"
           >
             <FileText />
             Documents
-          </Button>
-          <Button
-            className="h-10 w-full justify-start gap-3 px-3"
-            variant="ghost"
+          </Link>
+          <Link
+            className={buttonVariants({
+              variant: 'ghost',
+              className: 'h-10 w-full justify-start gap-3 px-3',
+            })}
+            href="/sources"
           >
             <Radio />
             Sources
-          </Button>
+          </Link>
           <Link
             className={buttonVariants({
               variant: 'ghost',
@@ -321,16 +339,24 @@ export default async function Home({ searchParams }: HomeProps) {
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
             Bavaria on-site and hybrid, plus Germany-wide remote roles.
           </p>
-          <Button className="mt-3 w-full" size="sm" variant="outline">
+          <Link
+            className={buttonVariants({
+              variant: 'outline',
+              size: 'sm',
+              className: 'mt-3 w-full',
+            })}
+            href="/settings"
+          >
             <Settings2 />
             Search settings
-          </Button>
+          </Link>
         </div>
       </aside>
 
       <div className="lg:pl-[232px]">
         <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-border/70 bg-background/90 px-4 backdrop-blur-xl sm:px-7 lg:px-9">
-          <div className="lg:hidden">
+          <div className="flex items-center gap-2 lg:hidden">
+            <MobileWorkspaceMenu active="/" />
             <Brand />
           </div>
           <div className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
@@ -340,7 +366,11 @@ export default async function Home({ searchParams }: HomeProps) {
               : 'No search has run yet'}
           </div>
           <div className="flex items-center gap-2">
-            <form action="/auth/signout" method="post">
+            <form
+              className="hidden sm:block"
+              action="/auth/signout"
+              method="post"
+            >
               <Button
                 aria-label="Sign out"
                 size="icon"
@@ -350,13 +380,23 @@ export default async function Home({ searchParams }: HomeProps) {
                 <LogOut />
               </Button>
             </form>
-            <Button aria-label="Notifications" size="icon" variant="ghost">
+            <Link
+              aria-label="Notifications"
+              className={buttonVariants({ variant: 'ghost', size: 'icon' })}
+              href="/notifications"
+            >
               <Bell />
-            </Button>
-            <Button className="hidden gap-2 sm:flex" variant="outline">
+            </Link>
+            <Link
+              className={buttonVariants({
+                variant: 'outline',
+                className: 'hidden gap-2 sm:flex',
+              })}
+              href="/jobs/new"
+            >
               <Plus />
               Add a job
-            </Button>
+            </Link>
             <RunSearchButton />
           </div>
         </header>
@@ -426,10 +466,13 @@ export default async function Home({ searchParams }: HomeProps) {
                     {jobs.length === 1 ? 'eligible match' : 'eligible matches'}
                   </p>
                 </div>
-                <Button variant="ghost">
+                <Link
+                  className={buttonVariants({ variant: 'ghost' })}
+                  href="/jobs"
+                >
                   View all
                   <ChevronRight />
-                </Button>
+                </Link>
               </div>
 
               <div className="space-y-3">
@@ -444,7 +487,7 @@ export default async function Home({ searchParams }: HomeProps) {
                     </CardContent>
                   </Card>
                 ) : null}
-                {jobs.map((job) => (
+                {featuredJobs.map((job) => (
                   <Link
                     key={job.id}
                     aria-label={`View ${job.title} at ${job.company}`}
