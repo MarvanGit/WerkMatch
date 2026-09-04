@@ -162,22 +162,41 @@ async function processRequest(request: GenerationRequest): Promise<boolean> {
     if (evaluationResult.error) throw evaluationResult.error;
 
     const facts = factsResult.data as CandidateFactForDocuments[];
-    const { data: templateBlob, error: templateError } = await supabase.storage
-      .from('candidate-assets')
-      .download(profileResult.data.latex_template_object_key);
-    if (templateError) throw templateError;
-    const masterTemplate = await templateBlob.text();
-    const coverLetterTemplateKey =
-      profileResult.data.cover_letter_template_object_key ??
-      process.env.COVER_LETTER_TEMPLATE_OBJECT_KEY;
-    let coverLetterTemplate: string | undefined;
-    if (coverLetterTemplateKey) {
-      const { data: coverLetterBlob, error: coverLetterError } =
-        await supabase.storage
-          .from('candidate-assets')
-          .download(coverLetterTemplateKey);
-      if (coverLetterError) throw coverLetterError;
-      coverLetterTemplate = await coverLetterBlob.text();
+    const cvTemplate = await downloadCandidateTemplate({
+      userId: request.user_id,
+      configuredKey: profileResult.data.latex_template_object_key,
+      kind: 'cv',
+      required: true,
+    });
+    if (!cvTemplate) {
+      throw new Error('The uploaded CV LaTeX template could not be found.');
+    }
+    const coverTemplate = await downloadCandidateTemplate({
+      userId: request.user_id,
+      configuredKey:
+        profileResult.data.cover_letter_template_object_key ??
+        process.env.COVER_LETTER_TEMPLATE_OBJECT_KEY,
+      kind: 'cover-letter',
+      required: false,
+    });
+    const masterTemplate = cvTemplate.text;
+    const coverLetterTemplate = coverTemplate?.text;
+    if (
+      cvTemplate.key !== profileResult.data.latex_template_object_key ||
+      (coverTemplate &&
+        coverTemplate.key !==
+          profileResult.data.cover_letter_template_object_key)
+    ) {
+      const { error: profileUpdateError } = await supabase
+        .from('candidate_profiles')
+        .update({
+          latex_template_object_key: cvTemplate.key,
+          cover_letter_template_object_key:
+            coverTemplate?.key ??
+            profileResult.data.cover_letter_template_object_key,
+        })
+        .eq('user_id', request.user_id);
+      if (profileUpdateError) throw profileUpdateError;
     }
 
     const storedPlan = tailoringPlanOutputSchema.safeParse(
@@ -208,6 +227,8 @@ async function processRequest(request: GenerationRequest): Promise<boolean> {
       job: {
         title: jobResult.data.title,
         company: jobResult.data.company,
+        description: jobResult.data.description,
+        locationText: jobResult.data.location_text,
       },
       facts,
       plan,
@@ -322,7 +343,11 @@ async function processRequest(request: GenerationRequest): Promise<boolean> {
 
     const telegramChatId =
       scheduleResult.data?.telegram_chat_id ?? process.env.TELEGRAM_CHAT_ID;
-    if ((scheduleResult.data?.telegram_enabled ?? true) && telegramChatId) {
+    if (
+      process.env.SUPPRESS_DOCUMENT_NOTIFICATIONS !== 'true' &&
+      (scheduleResult.data?.telegram_enabled ?? true) &&
+      telegramChatId
+    ) {
       try {
         await sendTelegramDocumentsReady(telegramChatId, {
           title: jobResult.data.title,
@@ -349,6 +374,51 @@ async function processRequest(request: GenerationRequest): Promise<boolean> {
   } finally {
     await rm(workingDirectory, { recursive: true, force: true });
   }
+}
+
+async function downloadCandidateTemplate(input: {
+  userId: string;
+  configuredKey: string | null | undefined;
+  kind: 'cv' | 'cover-letter';
+  required: boolean;
+}): Promise<{ key: string; text: string } | null> {
+  const candidateKeys = input.configuredKey ? [input.configuredKey] : [];
+  const { data: objects, error: listError } = await supabase.storage
+    .from('candidate-assets')
+    .list(input.userId, { limit: 100 });
+  if (listError) throw listError;
+
+  const matchingObject = (objects ?? []).find((object) => {
+    const fileName = object.name.toLocaleLowerCase('en-US');
+    if (!fileName.endsWith('.tex')) return false;
+    return input.kind === 'cover-letter'
+      ? /cover|letter|anschreiben/.test(fileName)
+      : /(?:^|[_-])cv|resume|lebenslauf/.test(fileName) &&
+          !/cover|letter|anschreiben/.test(fileName);
+  });
+  if (matchingObject) {
+    const discoveredKey = `${input.userId}/${matchingObject.name}`;
+    if (!candidateKeys.includes(discoveredKey))
+      candidateKeys.push(discoveredKey);
+  }
+
+  for (const key of candidateKeys) {
+    const { data, error } = await supabase.storage
+      .from('candidate-assets')
+      .download(key);
+    if (!error && data) return { key, text: await data.text() };
+    if (error && error.statusCode !== '404' && error.status !== 404)
+      throw error;
+  }
+
+  if (input.required) {
+    throw new Error(
+      input.kind === 'cv'
+        ? 'The uploaded CV LaTeX template could not be found.'
+        : 'The uploaded cover-letter LaTeX template could not be found.',
+    );
+  }
+  return null;
 }
 
 async function compileLatex(directory: string, fileName: string) {

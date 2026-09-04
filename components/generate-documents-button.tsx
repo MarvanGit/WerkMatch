@@ -131,8 +131,9 @@ export function GenerateDocumentsButton({ jobId }: { jobId: string }) {
       ) : null}
       {!working && generation?.status !== 'ready' ? (
         <p className="col-span-2 text-xs leading-relaxed text-muted-foreground">
-          Your uploaded CV text and styling stay unchanged; only safely matched
-          skill entries may be reordered.
+          Your uploaded CV text, field order, and styling stay unchanged. Only
+          technologies within a field and bullets within their original list may
+          be reordered.
         </p>
       ) : null}
       {pdfs.map((artifact) => (
