@@ -9,6 +9,10 @@ import {
   normalizeArbeitnowJob,
 } from '../sources/arbeitnow.ts';
 import {
+  defaultLinkedInBoards,
+  fetchLinkedInJobs,
+} from '../sources/linkedin.ts';
+import {
   defaultPersonioBoards,
   fetchPersonioJobs,
 } from '../sources/personio.ts';
@@ -273,9 +277,10 @@ export async function runSearchForUser(
 }
 
 async function collectSourceJobs(): Promise<SourceCollection[]> {
-  const [arbeitnow, personio] = await Promise.allSettled([
+  const [arbeitnow, personio, linkedin] = await Promise.allSettled([
     fetchArbeitnowJobs(),
     fetchPersonioJobs(),
+    fetchLinkedInJobs(),
   ]);
 
   const collections: SourceCollection[] = [];
@@ -327,6 +332,42 @@ async function collectSourceJobs(): Promise<SourceCollection[]> {
         personio.reason instanceof Error
           ? personio.reason.message
           : 'Personio scraper failed.',
+    });
+  }
+
+  if (linkedin.status === 'fulfilled') {
+    collections.push({
+      source: 'linkedin',
+      scanned: linkedin.value.scanned,
+      jobs: linkedin.value.jobs,
+      config: {
+        boards: defaultLinkedInBoards.map((board) => ({
+          id: board.id,
+          queries: board.queries,
+          max_pages: board.maxPages,
+        })),
+        candidate_pages: linkedin.value.candidateUrls,
+      },
+      error: linkedin.value.errors.length
+        ? linkedin.value.errors.join('; ').slice(0, 2_000)
+        : null,
+    });
+  } else {
+    collections.push({
+      source: 'linkedin',
+      scanned: 0,
+      jobs: [],
+      config: {
+        boards: defaultLinkedInBoards.map((board) => ({
+          id: board.id,
+          queries: board.queries,
+          max_pages: board.maxPages,
+        })),
+      },
+      error:
+        linkedin.reason instanceof Error
+          ? linkedin.reason.message
+          : 'LinkedIn scraper failed.',
     });
   }
   return collections;

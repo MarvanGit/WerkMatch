@@ -97,7 +97,7 @@ export function GenerateDocumentsButton({ jobId }: { jobId: string }) {
         queued:
           'Queued securely. The document worker checks every five minutes.',
         generating:
-          'OpenCode is ordering your unchanged CV content and drafting the letter…',
+          'OpenCode is selecting relevant existing skill entries and drafting the letter…',
         compiling: 'The LaTeX documents are compiling…',
         ready: 'Your tailored documents are ready.',
         failed: generation.error_message ?? 'Document generation failed.',
@@ -131,8 +131,8 @@ export function GenerateDocumentsButton({ jobId }: { jobId: string }) {
       ) : null}
       {!working && generation?.status !== 'ready' ? (
         <p className="col-span-2 text-xs leading-relaxed text-muted-foreground">
-          Your uploaded CV text stays unchanged and complete; only its section
-          order is tailored to the job.
+          Your uploaded CV text and styling stay unchanged; only safely matched
+          skill entries may be reordered.
         </p>
       ) : null}
       {pdfs.map((artifact) => (

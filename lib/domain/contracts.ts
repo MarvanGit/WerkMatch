@@ -41,21 +41,6 @@ export const matchEvaluationOutputSchema = z.object({
 export const tailoringPlanOutputSchema = z.object({
   documentLanguage: z.enum(['de', 'en']),
   factPriorityIds: z.array(z.string().min(1)).max(60),
-  sectionOrder: z
-    .array(
-      z.enum([
-        'skills',
-        'experience',
-        'education',
-        'project',
-        'certification',
-        'award',
-        'activity',
-        'language',
-        'interest',
-      ]),
-    )
-    .max(9),
   coverLetter: z.object({
     subject: z.string().min(1).max(300),
     salutation: z.string().min(1).max(200),

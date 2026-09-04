@@ -22,6 +22,7 @@ WerkMatch is a private job-search workspace for technical working-student roles.
 - Telegram Bot API for notifications
 - Arbeitnow as a structured job source
 - Direct HTML scraping of selected Bavarian company career boards on Personio
+- Public LinkedIn guest job search pages (no authenticated LinkedIn crawling)
 - OpenCode Go Responses API for evidence-locked match evaluation
 - A scheduled worker for on-demand LaTeX compilation
 
@@ -29,7 +30,7 @@ WerkMatch is a private job-search workspace for technical working-student roles.
 
 The dashboard's **Run search** action currently:
 
-1. reads recent Arbeitnow listings and scrapes selected company career boards;
+1. reads recent Arbeitnow and LinkedIn listings and scrapes selected company career boards;
 2. rejects non-student, non-technical, and location-ineligible roles before AI use;
 3. sends only candidate listings and verified candidate facts to OpenCode Go;
 4. stores structured scores and exact candidate-fact references in Supabase; and
@@ -40,17 +41,25 @@ called during an authorized search run.
 
 ## Document generation
 
-The uploaded LaTeX CV is the immutable content source. WerkMatch preserves every
-line and the original styling, and only reorders whole sections within the
-template's existing page boundaries. OpenCode writes the job-specific cover
-letter from verified candidate facts; it cannot remove or rewrite CV content.
+The uploaded LaTeX CV is the immutable content source. WerkMatch preserves the
+source and styling exactly. If the Skills section contains recognizable
+`\\cvitem` or `\\resumeSubItem` entries, only those complete entries may be
+reordered using verified fact priority; sections and entry text are never
+rewritten. A separate cover-letter template can be stored in
+`cover_letter_template_object_key` (or configured with
+`COVER_LETTER_TEMPLATE_OBJECT_KEY`). WerkMatch preserves that template's
+sender, layout, closing, and signature, replacing only the recipient, subject,
+salutation, and evidence-bound body.
 
 ## Local setup
 
 1. Copy `.env.example` to `.env.local` and fill in the required values.
-2. Apply the SQL migration in `supabase/migrations` to the Supabase project.
+2. Apply the SQL migrations in `supabase/migrations` to the Supabase project.
 3. Create the authorized user in Supabase Authentication.
-4. Run `npm install` and `npm run dev`.
+4. Upload the CV and cover-letter templates to the private `candidate-assets`
+   bucket and set their object keys on the candidate profile. The cover-letter
+   key may alternatively be provided with `COVER_LETTER_TEMPLATE_OBJECT_KEY`.
+5. Run `npm install` and `npm run dev`.
 
 Never commit `.env.local`, CV files, photographs, API keys, Telegram tokens, or generated application documents.
 

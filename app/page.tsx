@@ -141,7 +141,7 @@ export default async function Home({ searchParams }: HomeProps) {
       .eq('user_id', user.id)
       .eq('eligible', true)
       .order('overall_score', { ascending: false })
-      .limit(8),
+      .limit(100),
     supabase
       .from('search_schedules')
       .select(

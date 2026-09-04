@@ -71,7 +71,9 @@ async function processRequest(request: {
     ] = await Promise.all([
       supabase
         .from('candidate_profiles')
-        .select('profile_version,latex_template_object_key,portrait_object_key')
+        .select(
+          'profile_version,latex_template_object_key,cover_letter_template_object_key,portrait_object_key',
+        )
         .eq('user_id', request.user_id)
         .single(),
       supabase
@@ -125,6 +127,18 @@ async function processRequest(request: {
       .download(profileResult.data.latex_template_object_key);
     if (templateError) throw templateError;
     const masterTemplate = await templateBlob.text();
+    const coverLetterTemplateKey =
+      profileResult.data.cover_letter_template_object_key ??
+      process.env.COVER_LETTER_TEMPLATE_OBJECT_KEY;
+    let coverLetterTemplate: string | undefined;
+    if (coverLetterTemplateKey) {
+      const { data: coverLetterBlob, error: coverLetterError } =
+        await supabase.storage
+          .from('candidate-assets')
+          .download(coverLetterTemplateKey);
+      if (coverLetterError) throw coverLetterError;
+      coverLetterTemplate = await coverLetterBlob.text();
+    }
 
     const { plan, model } = await createTailoringPlan({
       job: {
@@ -142,6 +156,11 @@ async function processRequest(request: {
     });
     const { cvTex, coverLetterTex } = renderTailoredDocuments({
       masterTemplate,
+      coverLetterTemplate,
+      job: {
+        title: jobResult.data.title,
+        company: jobResult.data.company,
+      },
       facts,
       plan,
     });

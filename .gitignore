@@ -21,6 +21,7 @@
 *.pem
 *.tsbuildinfo
 /private-assets/
+/private_assets/
 
 # debug
 npm-debug.log*

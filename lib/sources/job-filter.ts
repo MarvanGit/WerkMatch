@@ -10,7 +10,7 @@ const excludedRolePattern =
   /\b(finance|accounting|controlling|marketing|sales|vertrieb|human resources|people(?:\s*&\s*| and )culture|recruit(?:ing|ment)?|talent acquisition|category management|social media|customer success|immobilien|real estate)\b/i;
 
 const bavariaPattern =
-  /\b(bayern|bavaria|münchen|munich|erlangen|nürnberg|nuremberg|regensburg|ingolstadt|augsburg|würzburg|wuerzburg|bamberg|bayreuth|coburg|fürth|fuerth|passau|landshut|rosenheim|neu-ulm|garching|unterföhring|ottobrunn|aschheim|martinsried|herzogenaurach|unterhaching|freising)\b/i;
+  /\b(bayern|bavaria|münchen|munich|greater munich metropolitan area|metropolregion münchen|erlangen|nürnberg|nuremberg|regensburg|ingolstadt|augsburg|würzburg|wuerzburg|bamberg|bayreuth|coburg|fürth|fuerth|passau|landshut|rosenheim|neu-ulm|garching|unterföhring|ottobrunn|aschheim|martinsried|herzogenaurach|unterhaching|freising)\b/i;
 
 export function isTargetStudentTechRole(input: {
   title: string;
