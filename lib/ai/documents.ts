@@ -61,7 +61,7 @@ const tailoringPlanJsonSchema = {
   required: ['documentLanguage', 'factPriorityIds', 'coverLetter'],
 } as const;
 
-export const documentPromptVersion = 'documents-v5-german-cover-letter';
+export const documentPromptVersion = 'documents-v6-standard-german-orthography';
 
 export async function createTailoringPlan(input: {
   job: JobForDocuments;
@@ -95,6 +95,8 @@ export async function createTailoringPlan(input: {
             'Never request or imply section, field, role, education, project, certificate, or activity reordering.',
             'Set documentLanguage to de. Always write the complete cover letter in clear, professional German, regardless of the language used in the job listing.',
             'The subject, salutation, every paragraph, and closing must be German. Preserve the exact supplied job title even when that title is English.',
+            'Use standard German orthography as used in Germany, not Swiss spelling. Use the native Unicode letters ä, ö, ü, Ä, Ö, Ü, and ß wherever German spelling requires them.',
+            'Never replace umlauts with ae, oe, or ue, and never replace ß with ss. For example, write für, über, Fähigkeiten, Straße, größere, and Grüße. Do not alter company names, product names, technologies, or the supplied job title.',
             'The cover letter is the only newly written content. Keep it concise, natural, and close to the candidate facts. Do not use inflated language, generic claims, or claims not directly supported by the cited facts.',
             'Every cover-letter paragraph must cite exact supplied fact_key values and may use only claims supported by those facts.',
             'Use exactly three short paragraphs whenever possible. Keep each paragraph under 900 characters.',

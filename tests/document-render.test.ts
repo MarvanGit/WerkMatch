@@ -26,15 +26,15 @@ const plan = {
     salutation: 'Sehr geehrtes Example-Team,',
     paragraphs: [
       {
-        text: 'Erster belegter Absatz.',
+        text: 'Ich bewerbe mich für die ausgeschriebene Position.',
         evidenceFactIds: ['skills.verified'],
       },
       {
-        text: 'Zweiter belegter Absatz.',
+        text: 'Meine Fähigkeiten passen zu größeren technischen Aufgaben.',
         evidenceFactIds: ['skills.verified'],
       },
       {
-        text: 'Dritter belegter Absatz.',
+        text: 'Über die Möglichkeit eines Gesprächs freue ich mich.',
         evidenceFactIds: ['skills.verified'],
       },
     ],
@@ -198,6 +198,17 @@ Old closing
     coverLetterTex,
     /\\vspace\{0\.5cm\}\s+Sehr geehrtes Example-Team,/,
   );
+  for (const germanSpelling of [
+    'für',
+    'Fähigkeiten',
+    'größeren',
+    'Über',
+    'Möglichkeit',
+    'Gesprächs',
+    'Grüßen',
+  ]) {
+    assert.ok(coverLetterTex.includes(germanSpelling));
+  }
   for (const removed of [
     'Old Company',
     'Old Team',

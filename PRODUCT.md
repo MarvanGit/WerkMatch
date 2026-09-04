@@ -20,7 +20,7 @@ WerkMatch is Marwan's private application workspace for finding and acting on te
 - Tailoring must not invent or remove candidate facts.
 - The CV keeps its established field order and content; only the ordering of technologies, evidence, and bullet points may change to emphasize relevance.
 - The cover letter keeps the uploaded template and changes only job-specific text such as company, address, position, and letter content.
-- Every generated cover letter is written in German, even when the source listing is in English.
+- Every generated cover letter is written in standard German orthography for Germany, including native umlauts and ß, even when the source listing is in English.
 
 ## Application workflow
 
