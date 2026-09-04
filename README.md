@@ -22,6 +22,7 @@ WerkMatch is a private job-search workspace for technical working-student roles.
 - Telegram Bot API for notifications
 - Arbeitnow as a structured job source
 - Direct HTML scraping of selected Bavarian company career boards on Personio
+- Direct HTML scraping of selected SmartRecruiters and Lever employer boards
 - Public LinkedIn guest job search pages (no authenticated LinkedIn crawling)
 - OpenCode Go Responses API for evidence-locked match evaluation
 - Staggered document workers for on-demand LaTeX compilation
@@ -30,7 +31,7 @@ WerkMatch is a private job-search workspace for technical working-student roles.
 
 The dashboard's **Run search** action currently:
 
-1. reads recent Arbeitnow and LinkedIn listings and scrapes selected company career boards;
+1. scrapes selected Personio, SmartRecruiters, Lever, and public LinkedIn career pages, with Arbeitnow retained as a supplemental feed;
 2. rejects non-student, non-technical, and location-ineligible roles before AI use;
 3. sends only candidate listings and verified candidate facts to OpenCode Go;
 4. stores structured scores and exact candidate-fact references in Supabase; and

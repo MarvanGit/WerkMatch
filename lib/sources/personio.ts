@@ -54,6 +54,41 @@ export const defaultPersonioBoards: PersonioBoard[] = [
     company: 'The Mobility House',
     url: 'https://tmh.jobs.personio.de/?language=de',
   },
+  {
+    id: 'ommax',
+    company: 'OMMAX',
+    url: 'https://ommax.jobs.personio.de/?language=en',
+  },
+  {
+    id: 'revel8',
+    company: 'revel8',
+    url: 'https://revel8.jobs.personio.de/?language=en',
+  },
+  {
+    id: 'snke',
+    company: 'Snke',
+    url: 'https://snke.jobs.personio.de/?language=en',
+  },
+  {
+    id: 'trusteq',
+    company: 'TRUSTEQ',
+    url: 'https://trusteq-gmbh.jobs.personio.de/?language=en',
+  },
+  {
+    id: 'dataciders',
+    company: 'Dataciders',
+    url: 'https://dataciders.jobs.personio.de/?language=de',
+  },
+  {
+    id: 'rocksolid',
+    company: 'ROCKSOLID Personalvermittlung',
+    url: 'https://rocksolid.jobs.personio.de/?language=de',
+  },
+  {
+    id: 'rise-partners',
+    company: 'RISE PARTNERS',
+    url: 'https://rise-partners.jobs.personio.de/?language=de',
+  },
 ];
 
 type JsonObject = Record<string, unknown>;

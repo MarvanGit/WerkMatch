@@ -4,7 +4,7 @@ const studentRolePattern =
   /\b(werkstudent(?:in|en|entätigkeit)?|working[ -]student|studentische hilfskraft|student assistant|studentischer mitarbeiter|student trainee)\b/i;
 
 const technicalRolePattern =
-  /\b(software|developer|entwicklung|entwickler|engineering|engineer|backend|front[ -]?end|full[ -]?stack|devops|cloud|data (?:engineering|science|analytics|analysis|platform)|machine learning|artificial intelligence|künstliche intelligenz|ki|qa|quality assurance|test(?:ing|automatisierung| automation)?|informatik|it[ -](?:administration|support)|automation|cyber|security|embedded|robotics|systementwicklung|prototyping|programmier\w*)\b/i;
+  /\b(software|developer|development|entwicklung|entwickler|engineering|engineer|backend|front[ -]?end|full[ -]?stack|devops|cloud|data (?:engineering|science|analytics|analysis|platform|pipeline)|daten(?:analyse|technik|plattform)|database|machine learning|artificial intelligence|künstliche intelligenz|ki|qa|quality assurance|test(?:ing|automatisierung| automation)?|informatik|it[ -](?:administration|support)|low[ -]?code|power platform|automation|cyber|security|embedded|robotics|systementwicklung|prototyping|programmier\w*|r&d)\b/i;
 
 const excludedRolePattern =
   /\b(finance|accounting|controlling|marketing|sales|vertrieb|human resources|people(?:\s*&\s*| and )culture|recruit(?:ing|ment)?|talent acquisition|category management|social media|customer success|immobilien|real estate)\b/i;

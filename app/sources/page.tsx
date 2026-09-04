@@ -36,6 +36,16 @@ const sourceCopy: Record<string, { name: string; description: string }> = {
     name: 'LinkedIn public jobs',
     description: 'Public LinkedIn search pages for working-student tech roles.',
   },
+  smartrecruiters: {
+    name: 'SmartRecruiters career sites',
+    description:
+      'Direct HTML listings from selected Bavarian employer career pages.',
+  },
+  lever: {
+    name: 'Lever career sites',
+    description:
+      'Direct HTML listings from selected employers with Bavarian and remote roles.',
+  },
 };
 
 export default async function SourcesPage() {
@@ -51,7 +61,13 @@ export default async function SourcesPage() {
     .eq('user_id', user.id)
     .order('source');
   const stored = (data ?? []) as SourceConfig[];
-  const sourceNames = ['arbeitnow', 'personio', 'linkedin'];
+  const sourceNames = [
+    'arbeitnow',
+    'personio',
+    'smartrecruiters',
+    'lever',
+    'linkedin',
+  ];
   const byName = new Map(stored.map((source) => [source.source, source]));
   const sources = sourceNames.map(
     (source) =>

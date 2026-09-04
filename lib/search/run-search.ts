@@ -12,10 +12,15 @@ import {
   defaultLinkedInBoards,
   fetchLinkedInJobs,
 } from '../sources/linkedin.ts';
+import { defaultLeverBoards, fetchLeverJobs } from '../sources/lever.ts';
 import {
   defaultPersonioBoards,
   fetchPersonioJobs,
 } from '../sources/personio.ts';
+import {
+  defaultSmartRecruitersBoards,
+  fetchSmartRecruitersJobs,
+} from '../sources/smartrecruiters.ts';
 import type { NormalizedSourceJob } from '../sources/types.ts';
 
 const maxEvaluationsPerRun = 16;
@@ -277,11 +282,14 @@ export async function runSearchForUser(
 }
 
 async function collectSourceJobs(): Promise<SourceCollection[]> {
-  const [arbeitnow, personio, linkedin] = await Promise.allSettled([
-    fetchArbeitnowJobs(),
-    fetchPersonioJobs(),
-    fetchLinkedInJobs(),
-  ]);
+  const [arbeitnow, personio, linkedin, smartrecruiters, lever] =
+    await Promise.allSettled([
+      fetchArbeitnowJobs(),
+      fetchPersonioJobs(),
+      fetchLinkedInJobs(),
+      fetchSmartRecruitersJobs(),
+      fetchLeverJobs(),
+    ]);
 
   const collections: SourceCollection[] = [];
   if (arbeitnow.status === 'fulfilled') {
@@ -368,6 +376,60 @@ async function collectSourceJobs(): Promise<SourceCollection[]> {
         linkedin.reason instanceof Error
           ? linkedin.reason.message
           : 'LinkedIn scraper failed.',
+    });
+  }
+
+  if (smartrecruiters.status === 'fulfilled') {
+    collections.push({
+      source: 'smartrecruiters',
+      scanned: smartrecruiters.value.scanned,
+      jobs: smartrecruiters.value.jobs,
+      config: {
+        boards: defaultSmartRecruitersBoards.map((board) => board.url),
+        candidate_pages: smartrecruiters.value.candidatePages,
+      },
+      error: smartrecruiters.value.errors.length
+        ? smartrecruiters.value.errors.join('; ').slice(0, 2_000)
+        : null,
+    });
+  } else {
+    collections.push({
+      source: 'smartrecruiters',
+      scanned: 0,
+      jobs: [],
+      config: {
+        boards: defaultSmartRecruitersBoards.map((board) => board.url),
+      },
+      error:
+        smartrecruiters.reason instanceof Error
+          ? smartrecruiters.reason.message
+          : 'SmartRecruiters scraper failed.',
+    });
+  }
+
+  if (lever.status === 'fulfilled') {
+    collections.push({
+      source: 'lever',
+      scanned: lever.value.scanned,
+      jobs: lever.value.jobs,
+      config: {
+        boards: defaultLeverBoards.map((board) => board.url),
+        candidate_pages: lever.value.candidatePages,
+      },
+      error: lever.value.errors.length
+        ? lever.value.errors.join('; ').slice(0, 2_000)
+        : null,
+    });
+  } else {
+    collections.push({
+      source: 'lever',
+      scanned: 0,
+      jobs: [],
+      config: { boards: defaultLeverBoards.map((board) => board.url) },
+      error:
+        lever.reason instanceof Error
+          ? lever.reason.message
+          : 'Lever scraper failed.',
     });
   }
   return collections;
