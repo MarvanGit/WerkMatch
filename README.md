@@ -41,10 +41,24 @@ Candidate facts are never sent to the job source. OpenCode and Telegram are only
 called during an authorized search run.
 
 LinkedIn searches cover Bavaria, Bavarian cities, and Germany-wide remote roles
-using German and English technical-role variants. `LINKEDIN_MAX_SEARCH_PAGES`
-and `LINKEDIN_MAX_CANDIDATES` control the depth and detail-page budget; both are
-capped by the scraper for safety. LinkedIn remains an unauthenticated public
-source; personal account passwords and session cookies are not collected.
+using German and English technical-role variants, including embedded software,
+robotics, full-stack development, and student assistant roles. Remote searches
+also use LinkedIn's remote-work filter. Queries are interleaved across regions
+and paged breadth-first; overlapping queries cannot prematurely stop pagination.
+
+Defaults are 8 pages per query and up to 160 detail pages per run (previously
+3 and 40). Configure these with `LINKEDIN_MAX_SEARCH_PAGES` (maximum 12) and
+`LINKEDIN_MAX_CANDIDATES` (maximum 300). `LINKEDIN_MAX_RUNTIME_SECONDS`
+defaults to 360 (maximum 480); 55% is reserved for discovering listings, leaving
+time for details. Partial results survive the deadline. Listing/detail concurrency
+is bounded to 3/4 workers, with a shared one-second request-start interval and shared
+Retry-After cooldown. Persistent rate limits and access challenges stop collection.
+
+Source status records discovery counts, detail requests, and whether a budget
+was reached. Job lookups and writes are batched so larger result sets do not
+exceed database URL limits. AI evaluation remains limited to 16 jobs per search.
+LinkedIn remains an unauthenticated public source; personal account passwords
+and session cookies are not collected.
 
 ## Document generation
 

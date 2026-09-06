@@ -10,14 +10,16 @@ import type { NormalizedSourceJob } from './types.ts';
 const guestJobsEndpoint =
   'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search';
 const searchPageSize = 10;
-const defaultMaxSearchPages = 3;
-const hardMaxSearchPages = 5;
-const defaultMaxCandidatePages = 40;
-const hardMaxCandidatePages = 50;
-const detailConcurrency = 2;
+const defaultMaxSearchPages = 8;
+const hardMaxSearchPages = 12;
+const defaultMaxCandidatePages = 160;
+const hardMaxCandidatePages = 300;
+const detailConcurrency = 4;
+const listingConcurrency = 3;
+const defaultRuntimeSeconds = 360;
 const maxFetchAttempts = 3;
 const maxHtmlBytes = 2_000_000;
-const listingDelayMilliseconds = 150;
+const requestSpacingMilliseconds = 1_000;
 
 export type LinkedInQuery = {
   keywords?: string;
@@ -67,6 +69,14 @@ export const defaultLinkedInBoards: LinkedInBoard[] = [
         'Working Student Cyber Security',
         'Werkstudent Automation',
         'Working Student Automation',
+        'Werkstudent Embedded Software',
+        'Working Student Embedded Software',
+        'Werkstudent Full Stack',
+        'Working Student Full Stack',
+        'Werkstudent Robotics',
+        'Working Student Robotics',
+        'Studentische Hilfskraft Software',
+        'Student Assistant Software',
       ].map((keywords) => ({
         keywords,
         location: 'Bavaria, Germany',
@@ -110,9 +120,14 @@ export const defaultLinkedInBoards: LinkedInBoard[] = [
       'Working Student Remote Cloud',
       'Werkstudent Remote Machine Learning',
       'Working Student Remote Machine Learning',
+      'Werkstudent Software',
+      'Working Student Software',
+      'Werkstudent Embedded Software',
+      'Working Student Full Stack',
     ].map((keywords) => ({
       keywords,
       location: 'Germany',
+      f_WT: '2',
       sortBy: 'DD',
     })),
   },
@@ -124,6 +139,9 @@ export type LinkedInScrapeResult = {
   candidateUrls: number;
   jobs: NormalizedSourceJob[];
   errors: string[];
+  listingRequests: number;
+  detailRequests: number;
+  budgetExhausted: boolean;
 };
 
 export async function fetchLinkedInJobs(
@@ -136,6 +154,9 @@ export async function fetchLinkedInJobs(
       candidateUrls: 0,
       jobs: [],
       errors: [],
+      listingRequests: 0,
+      detailRequests: 0,
+      budgetExhausted: false,
     };
   }
 
@@ -153,61 +174,119 @@ export async function fetchLinkedInJobs(
     1,
     hardMaxSearchPages,
   );
+  const runtimeMilliseconds =
+    boundedEnvironmentInteger(
+      'LINKEDIN_MAX_RUNTIME_SECONDS',
+      defaultRuntimeSeconds,
+      30,
+      480,
+    ) * 1_000;
+  const startedAt = Date.now();
+  const listingDeadline = startedAt + Math.floor(runtimeMilliseconds * 0.55);
+  const deadline = startedAt + runtimeMilliseconds;
+  const limiter = createRequestLimiter();
+  const listingSignal = AbortSignal.timeout(
+    Math.max(1, listingDeadline - Date.now()),
+  );
+  const runSignal = AbortSignal.timeout(Math.max(1, deadline - Date.now()));
   let listingRequests = 0;
+  let detailRequests = 0;
+  let budgetExhausted = false;
+  let blocked = false;
 
-  for (const board of boards) {
-    const maxPages = Math.max(
-      1,
-      Math.min(
-        board.maxPages ?? configuredMaxSearchPages,
-        configuredMaxSearchPages,
-      ),
+  // Interleave boards and visit every query's first page before going deeper.
+  // A query tracks its own IDs: overlap with another query is not exhaustion.
+  const queries = interleave(
+    boards.map((board) =>
+      board.queries.map((query, index) => ({
+        board,
+        query,
+        index,
+        offset: Math.max(0, Number(query.start) || 0),
+        maxPages: Math.max(
+          1,
+          Math.min(
+            board.maxPages ?? configuredMaxSearchPages,
+            configuredMaxSearchPages,
+          ),
+        ),
+        seen: new Set<string>(),
+        done: false,
+      })),
+    ),
+  );
+  for (let page = 0; page < configuredMaxSearchPages && !blocked; page += 1) {
+    const active = queries.filter(
+      (query) => !query.done && page < query.maxPages,
     );
-
-    for (const [queryIndex, query] of board.queries.entries()) {
-      try {
-        for (let page = 0; page < maxPages; page += 1) {
-          if (listingRequests > 0) await delay(listingDelayMilliseconds);
-          listingRequests += 1;
-          const listingHtml = await fetchHtml(
-            buildSearchUrl(guestJobsEndpoint, {
-              ...query,
-              start: page * searchPageSize,
-            }),
-          );
-          const pageCards = extractJobCards(listingHtml);
-          if (!pageCards.length) {
-            if (page === 0 && isBlockedListing(listingHtml)) {
-              throw new Error('LinkedIn returned a blocked or challenge page.');
+    for (const batch of chunk(active, listingConcurrency)) {
+      if (Date.now() >= listingDeadline || blocked) break;
+      await Promise.all(
+        batch.map(async (state) => {
+          try {
+            listingRequests += 1;
+            const html = await fetchHtml(
+              buildSearchUrl(guestJobsEndpoint, {
+                ...state.query,
+                start: state.offset,
+              }),
+              limiter,
+              listingSignal,
+            );
+            const cards = extractJobCards(html);
+            if (!cards.length && isBlockedListing(html)) {
+              blocked = true;
+              throw fetchError(
+                'LinkedIn returned a blocked or challenge page.',
+                false,
+              );
             }
-            break;
+            const fresh = cards.filter((card) => !state.seen.has(card.id));
+            for (const card of cards) {
+              state.seen.add(card.id);
+              // The first discovery owns provenance, independent of later overlap.
+              if (!cardsById.has(card.id))
+                cardsById.set(card.id, { ...card, boardId: state.board.id });
+            }
+            state.offset += cards.length;
+            state.done = !fresh.length || cards.length < searchPageSize;
+          } catch (error) {
+            state.done = true;
+            if (listingSignal.aborted) budgetExhausted = true;
+            else
+              errors.push(
+                state.board.id +
+                  '/query-' +
+                  (state.index + 1) +
+                  ': ' +
+                  errorMessage(error),
+              );
+            if (isAccessBlocked(error)) blocked = true;
           }
-
-          const previousSize = cardsById.size;
-          for (const card of pageCards) {
-            cardsById.set(card.id, { ...card, boardId: board.id });
-          }
-          if (cardsById.size === previousSize) break;
-          if (pageCards.length < searchPageSize) break;
-        }
-      } catch (error) {
-        errors.push(
-          `${board.id}/query-${queryIndex + 1}: ${error instanceof Error ? error.message : 'search failed'}`,
-        );
-      }
+        }),
+      );
+    }
+    if (Date.now() >= listingDeadline) {
+      budgetExhausted = true;
+      break;
     }
   }
 
   const candidates = [...cardsById.values()]
     .filter((card) => isTargetStudentTechRole({ title: card.title }))
-    .sort(comparePublishedAt)
-    .slice(0, maxCandidates);
+    .sort(comparePublishedAt);
   const jobs: NormalizedSourceJob[] = [];
+  if (candidates.length > maxCandidates) budgetExhausted = true;
 
-  for (const candidateBatch of chunk(candidates, detailConcurrency)) {
+  for (const batch of chunk(
+    candidates.slice(0, maxCandidates),
+    detailConcurrency,
+  )) {
+    if (Date.now() >= deadline || blocked) break;
     const results = await Promise.allSettled(
-      candidateBatch.map(async (candidate) => {
-        const html = await fetchHtml(candidate.viewUrl);
+      batch.map(async (candidate) => {
+        detailRequests += 1;
+        const html = await fetchHtml(candidate.viewUrl, limiter, runSignal);
         return parseLinkedInJobPage(
           html,
           candidate,
@@ -217,12 +296,14 @@ export async function fetchLinkedInJobs(
     );
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
-        errors.push(
-          `job ${candidateBatch[index].id}: ${result.reason instanceof Error ? result.reason.message : 'job page failed'}`,
-        );
+        if (runSignal.aborted) budgetExhausted = true;
+        else
+          errors.push(
+            'job ' + batch[index].id + ': ' + errorMessage(result.reason),
+          );
+        if (isAccessBlocked(result.reason)) blocked = true;
         return;
       }
-
       const job = result.value;
       if (
         isTargetStudentTechRole({
@@ -231,18 +312,64 @@ export async function fetchLinkedInJobs(
           tags: job.tags,
         }) &&
         isPotentialLocationMatch(job)
-      ) {
+      )
         jobs.push(job);
-      }
     });
   }
-
+  if (Date.now() >= deadline) budgetExhausted = true;
   return {
     source: 'linkedin',
     scanned: cardsById.size,
     candidateUrls: candidates.length,
     jobs: deduplicateJobs(jobs),
     errors,
+    listingRequests,
+    detailRequests,
+    budgetExhausted,
+  };
+}
+
+function interleave<T>(groups: T[][]): T[] {
+  const result: T[] = [];
+  const longest = Math.max(0, ...groups.map((group) => group.length));
+  for (let index = 0; index < longest; index += 1) {
+    for (const group of groups)
+      if (index < group.length) result.push(group[index]);
+  }
+  return result;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'request failed';
+}
+
+function isAccessBlocked(error: unknown): boolean {
+  return /status (401|403|429|999)|authentication wall|blocked or challenge/i.test(
+    errorMessage(error),
+  );
+}
+
+// One start-time gate for all workers, including retries. A shared cooldown
+// prevents other workers from continuing immediately after a rate-limit reply.
+function createRequestLimiter() {
+  let nextStart = 0;
+  let cooldownUntil = 0;
+  let queue = Promise.resolve();
+  return {
+    cooldown(milliseconds: number) {
+      cooldownUntil = Math.max(cooldownUntil, Date.now() + milliseconds);
+    },
+    wait(signal: AbortSignal) {
+      const turn = queue.then(async () => {
+        while (Date.now() < Math.max(nextStart, cooldownUntil)) {
+          await delay(Math.max(nextStart, cooldownUntil) - Date.now(), signal);
+        }
+        signal.throwIfAborted();
+        nextStart = Date.now() + requestSpacingMilliseconds;
+      });
+      queue = turn.catch(() => {});
+      return turn;
+    },
   };
 }
 
@@ -572,11 +699,16 @@ function isoDateOrNull(value: string): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-async function fetchHtml(url: string): Promise<string> {
+async function fetchHtml(
+  url: string,
+  limiter: ReturnType<typeof createRequestLimiter>,
+  signal: AbortSignal,
+): Promise<string> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < maxFetchAttempts; attempt += 1) {
     try {
+      await limiter.wait(signal);
       const response = await fetch(url, {
         headers: {
           Accept: 'text/html,application/xhtml+xml',
@@ -585,10 +717,11 @@ async function fetchHtml(url: string): Promise<string> {
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
         redirect: 'follow',
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
       });
 
       if (!response.ok) {
+        await response.body?.cancel();
         if (![408, 425, 429, 500, 502, 503, 504].includes(response.status)) {
           throw fetchError(
             `request failed with status ${response.status}`,
@@ -628,12 +761,19 @@ async function fetchHtml(url: string): Promise<string> {
       const retryable =
         !(error instanceof Error) ||
         (error as Error & { retryable?: boolean }).retryable !== false;
+      if (signal.aborted) throw error;
       if (attempt + 1 < maxFetchAttempts && retryable) {
         const retryAfter =
           error instanceof Error
             ? (error as Error & { retryAfter?: number }).retryAfter
             : undefined;
-        await delay(retryAfter ?? 400 * 2 ** attempt);
+        const rateLimited = /status 429/.test(lastError.message);
+        limiter.cooldown(
+          Math.max(
+            retryAfter ?? 0,
+            (rateLimited ? 30_000 : 1_000) * 2 ** attempt,
+          ),
+        );
       } else {
         break;
       }
@@ -661,12 +801,28 @@ function parseRetryAfter(value: string | null): number | undefined {
   if (!value) return undefined;
   const seconds = Number(value);
   return Number.isFinite(seconds) && seconds >= 0
-    ? Math.min(seconds * 1_000, 10_000)
-    : undefined;
+    ? seconds * 1_000
+    : Number.isFinite(Date.parse(value))
+      ? Math.max(0, Date.parse(value) - Date.now())
+      : undefined;
 }
 
-async function delay(milliseconds: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, milliseconds));
+async function delay(milliseconds: number, signal: AbortSignal): Promise<void> {
+  signal.throwIfAborted();
+  await new Promise<void>((resolve, reject) => {
+    const abort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    const timer = setTimeout(
+      () => {
+        signal.removeEventListener('abort', abort);
+        resolve();
+      },
+      Math.min(milliseconds, 60_000),
+    );
+    signal.addEventListener('abort', abort, { once: true });
+  });
 }
 
 function boundedEnvironmentInteger(
@@ -686,7 +842,8 @@ function comparePublishedAt(
   right: LinkedInJobCard,
 ): number {
   return (
-    Date.parse(right.publishedAt ?? '') - Date.parse(left.publishedAt ?? '')
+    (Date.parse(right.publishedAt ?? '') || 0) -
+    (Date.parse(left.publishedAt ?? '') || 0)
   );
 }
 

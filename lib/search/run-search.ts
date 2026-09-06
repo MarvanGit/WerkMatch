@@ -1,3 +1,4 @@
+import { queryBatches } from './query-batches.ts';
 import { resolveJobIdentities } from './job-identity.ts';
 import { databaseOperation, errorMessage } from '../supabase/operation.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -131,17 +132,16 @@ export async function runSearchForUser(
     ...new Map(savedJobs.map((job) => [job.id, job])).values(),
   ];
   const jobIds = distinctSavedJobs.map((job) => job.id);
-  const { data: existingEvaluations, error: evaluationsError } = jobIds.length
-    ? await supabase
+  const existingEvaluations = await queryBatches(
+    jobIds,
+    (batch) =>
+      supabase
         .from('match_evaluations')
         .select('job_id,notified_at')
         .eq('user_id', userId)
-        .in('job_id', jobIds)
-    : { data: [], error: null };
-  if (evaluationsError)
-    throw new Error(
-      'Read existing evaluations: ' + errorMessage(evaluationsError),
-    );
+        .in('job_id', batch),
+    'Read existing evaluations',
+  );
 
   const evaluationByJobId = new Map(
     (existingEvaluations ?? []).map((evaluation) => [
@@ -362,7 +362,10 @@ async function collectSourceJobs(): Promise<SourceCollection[]> {
           queries: board.queries,
           max_pages: board.maxPages,
         })),
-        candidate_pages: linkedin.value.candidateUrls,
+        candidate_pages: linkedin.value.detailRequests,
+        discovered_candidates: linkedin.value.candidateUrls,
+        listing_requests: linkedin.value.listingRequests,
+        budget_exhausted: linkedin.value.budgetExhausted,
       },
       error: linkedin.value.errors.length
         ? linkedin.value.errors.join('; ').slice(0, 2_000)
@@ -454,31 +457,28 @@ async function saveSourceJobs(
     ...new Map(jobs.map((job) => [job.externalId, job])).values(),
   ];
   const externalIds = uniqueJobs.map((job) => job.externalId);
-  const { data: existingJobs, error: existingJobsError } = externalIds.length
-    ? await supabase
+  const existingJobs = await queryBatches(
+    externalIds,
+    (batch) =>
+      supabase
         .from('jobs')
         .select('id,source,external_id,canonical_url,content_fingerprint')
         .eq('user_id', userId)
         .eq('source', source)
-        .in('external_id', externalIds)
-    : { data: [], error: null };
-  if (existingJobsError)
-    throw new Error(
-      'Read existing source jobs: ' + errorMessage(existingJobsError),
-    );
-
-  const { data: canonicalJobs, error: canonicalError } = uniqueJobs.length
-    ? await supabase
+        .in('external_id', batch),
+    'Read existing source jobs',
+  );
+  const canonicalJobs = await queryBatches(
+    uniqueJobs.map((job) => job.canonicalUrl),
+    (batch) =>
+      supabase
         .from('jobs')
         .select('id,source,external_id,canonical_url,content_fingerprint')
         .eq('user_id', userId)
-        .in(
-          'canonical_url',
-          uniqueJobs.map((job) => job.canonicalUrl),
-        )
-    : { data: [], error: null };
-  if (canonicalError)
-    throw new Error('Read canonical jobs: ' + errorMessage(canonicalError));
+        .in('canonical_url', batch),
+    'Read canonical jobs',
+    20,
+  );
   const resolvedJobs = resolveJobIdentities(source, uniqueJobs, [
     ...(existingJobs ?? []),
     ...(canonicalJobs ?? []),
@@ -502,13 +502,16 @@ async function saveSourceJobs(
       .map((job) => JSON.stringify([job.source, job.externalId])),
   );
 
-  const { data: savedJobs, error: saveError } = preparedJobs.length
-    ? await databaseOperation(
-        () =>
-          supabase
-            .from('jobs')
-            .upsert(
-              preparedJobs.map(
+  const savedJobs: SavedJob[] = [];
+  for (let offset = 0; offset < preparedJobs.length; offset += 50) {
+    const { data } = await databaseOperation(
+      () =>
+        supabase
+          .from('jobs')
+          .upsert(
+            preparedJobs
+              .slice(offset, offset + 50)
+              .map(
                 ({
                   normalized: job,
                   fingerprint,
@@ -534,17 +537,16 @@ async function saveSourceJobs(
                   raw_payload: job.rawPayload,
                 }),
               ),
-              { onConflict: 'user_id,source,external_id' },
-            )
-            .select(
-              'id,source,external_id,title,company,description,location_text,region,country,work_mode,employment_type,canonical_url,published_at',
-            ),
-        'Save source jobs',
-        true,
-      )
-    : { data: [], error: null };
-  if (saveError)
-    throw new Error('Save source jobs: ' + errorMessage(saveError));
+            { onConflict: 'user_id,source,external_id' },
+          )
+          .select(
+            'id,source,external_id,title,company,description,location_text,region,country,work_mode,employment_type,canonical_url,published_at',
+          ),
+      'Save source jobs',
+      true,
+    );
+    savedJobs.push(...((data ?? []) as SavedJob[]));
+  }
 
   return {
     jobs: (savedJobs ?? []) as SavedJob[],
