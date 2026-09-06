@@ -1,3 +1,4 @@
+import { databaseOperation, errorMessage } from '../lib/supabase/operation.ts';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -58,15 +59,19 @@ if (failed > 0) process.exitCode = 1;
 
 async function requeueStaleRequests() {
   const staleBefore = new Date(Date.now() - 30 * 60_000).toISOString();
-  const { error } = await supabase
-    .from('generation_requests')
-    .update({
-      status: 'queued',
-      error_message: 'The previous worker stopped unexpectedly; retrying.',
-    })
-    .in('status', ['generating', 'compiling'])
-    .lt('updated_at', staleBefore);
-  if (error) throw error;
+  await databaseOperation(
+    () =>
+      supabase
+        .from('generation_requests')
+        .update({
+          status: 'queued',
+          error_message: 'The previous worker stopped unexpectedly; retrying.',
+        })
+        .in('status', ['generating', 'compiling'])
+        .lt('updated_at', staleBefore),
+    'Requeue stale document requests',
+    true,
+  );
 }
 
 async function claimNextRequest(): Promise<GenerationRequest | null> {
@@ -207,20 +212,23 @@ async function processRequest(request: GenerationRequest): Promise<boolean> {
           plan: storedPlan.data,
           model: request.model_id ?? 'stored-tailoring-plan',
         }
-      : await createTailoringPlan({
-          job: {
-            title: jobResult.data.title,
-            company: jobResult.data.company,
-            description: jobResult.data.description,
-            locationText: jobResult.data.location_text,
-            workMode: jobResult.data.work_mode,
+      : await createTailoringPlan(
+          {
+            job: {
+              title: jobResult.data.title,
+              company: jobResult.data.company,
+              description: jobResult.data.description,
+              locationText: jobResult.data.location_text,
+              workMode: jobResult.data.work_mode,
+            },
+            facts,
+            matchSummary: evaluationResult.data?.summary ?? null,
+            matchReasons: Array.isArray(evaluationResult.data?.reasons)
+              ? (evaluationResult.data.reasons as string[])
+              : [],
           },
-          facts,
-          matchSummary: evaluationResult.data?.summary ?? null,
-          matchReasons: Array.isArray(evaluationResult.data?.reasons)
-            ? (evaluationResult.data.reasons as string[])
-            : [],
-        });
+          `werkmatch-document-${request.id}`,
+        );
     const { cvTex, coverLetterTex } = renderTailoredDocuments({
       masterTemplate,
       coverLetterTemplate,
@@ -362,8 +370,7 @@ async function processRequest(request: GenerationRequest): Promise<boolean> {
     console.log('WerkMatch document request completed successfully.');
     return true;
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Unknown document failure.';
+    const message = errorMessage(error);
     await supabase
       .from('generation_requests')
       .update({ status: 'failed', error_message: message.slice(0, 2_000) })

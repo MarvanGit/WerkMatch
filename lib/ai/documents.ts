@@ -1,3 +1,4 @@
+import { requestOpenCode } from './transport.ts';
 import { tailoringPlanOutputSchema } from '../domain/contracts.ts';
 
 export type CandidateFactForDocuments = {
@@ -63,24 +64,18 @@ const tailoringPlanJsonSchema = {
 
 export const documentPromptVersion = 'documents-v6-standard-german-orthography';
 
-export async function createTailoringPlan(input: {
-  job: JobForDocuments;
-  facts: CandidateFactForDocuments[];
-  matchSummary: string | null;
-  matchReasons: string[];
-}) {
-  const apiKey = process.env.OPENCODE_GO_API_KEY;
+export async function createTailoringPlan(
+  input: {
+    job: JobForDocuments;
+    facts: CandidateFactForDocuments[];
+    matchSummary: string | null;
+    matchReasons: string[];
+  },
+  sessionId?: string,
+) {
   const model = process.env.OPENCODE_DOCUMENT_MODEL ?? 'gpt-5.6-luna';
-  if (!apiKey) throw new Error('OPENCODE_GO_API_KEY is not configured.');
-
-  const response = await fetch('https://opencode.ai/zen/go/v1/responses', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'User-Agent': 'WerkMatch/0.1 (+https://github.com/MarvanGit/WerkMatch)',
-    },
-    body: JSON.stringify({
+  const payload = await requestOpenCode(
+    {
       model,
       input: [
         {
@@ -115,15 +110,9 @@ export async function createTailoringPlan(input: {
         },
       },
       max_output_tokens: 4_500,
-    }),
-  });
-
-  const payload = (await response.json()) as Record<string, unknown>;
-  if (!response.ok) {
-    throw new Error(
-      `OpenCode document generation failed with status ${response.status}.`,
-    );
-  }
+    },
+    sessionId,
+  );
 
   const parsed = tailoringPlanOutputSchema.safeParse(
     JSON.parse(readOutputText(payload)),

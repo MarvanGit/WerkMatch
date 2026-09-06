@@ -1,3 +1,5 @@
+import { resolveJobIdentities } from './job-identity.ts';
+import { databaseOperation, errorMessage } from '../supabase/operation.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { evaluateJobWithOpenCode, matchPromptVersion } from '../ai/opencode.ts';
@@ -125,7 +127,10 @@ export async function runSearchForUser(
     saved.changedJobIds.forEach((jobId) => changedJobIds.add(jobId));
   }
 
-  const jobIds = savedJobs.map((job) => job.id);
+  const distinctSavedJobs = [
+    ...new Map(savedJobs.map((job) => [job.id, job])).values(),
+  ];
+  const jobIds = distinctSavedJobs.map((job) => job.id);
   const { data: existingEvaluations, error: evaluationsError } = jobIds.length
     ? await supabase
         .from('match_evaluations')
@@ -133,7 +138,10 @@ export async function runSearchForUser(
         .eq('user_id', userId)
         .in('job_id', jobIds)
     : { data: [], error: null };
-  if (evaluationsError) throw evaluationsError;
+  if (evaluationsError)
+    throw new Error(
+      'Read existing evaluations: ' + errorMessage(evaluationsError),
+    );
 
   const evaluationByJobId = new Map(
     (existingEvaluations ?? []).map((evaluation) => [
@@ -141,7 +149,7 @@ export async function runSearchForUser(
       evaluation,
     ]),
   );
-  const jobsToEvaluate = savedJobs
+  const jobsToEvaluate = distinctSavedJobs
     .filter(
       (job) => changedJobIds.has(job.id) || !evaluationByJobId.has(job.id),
     )
@@ -449,70 +457,102 @@ async function saveSourceJobs(
   const { data: existingJobs, error: existingJobsError } = externalIds.length
     ? await supabase
         .from('jobs')
-        .select('id,external_id,content_fingerprint')
+        .select('id,source,external_id,canonical_url,content_fingerprint')
         .eq('user_id', userId)
         .eq('source', source)
         .in('external_id', externalIds)
     : { data: [], error: null };
-  if (existingJobsError) throw existingJobsError;
+  if (existingJobsError)
+    throw new Error(
+      'Read existing source jobs: ' + errorMessage(existingJobsError),
+    );
 
-  const existingByExternalId = new Map(
-    (existingJobs ?? []).map((job) => [job.external_id, job]),
-  );
+  const { data: canonicalJobs, error: canonicalError } = uniqueJobs.length
+    ? await supabase
+        .from('jobs')
+        .select('id,source,external_id,canonical_url,content_fingerprint')
+        .eq('user_id', userId)
+        .in(
+          'canonical_url',
+          uniqueJobs.map((job) => job.canonicalUrl),
+        )
+    : { data: [], error: null };
+  if (canonicalError)
+    throw new Error('Read canonical jobs: ' + errorMessage(canonicalError));
+  const resolvedJobs = resolveJobIdentities(source, uniqueJobs, [
+    ...(existingJobs ?? []),
+    ...(canonicalJobs ?? []),
+  ]);
   const preparedJobs = await Promise.all(
-    uniqueJobs.map(async (job) => ({
-      normalized: job,
+    resolvedJobs.map(async (job) => ({
+      ...job,
       fingerprint: await sha256(
-        [job.title, job.company, job.locationText, job.description].join('\n'),
+        [
+          job.normalized.title,
+          job.normalized.company,
+          job.normalized.locationText,
+          job.normalized.description,
+        ].join('\n'),
       ),
     })),
   );
-  const changedExternalIds = new Set(
+  const changedKeys = new Set(
     preparedJobs
-      .filter(
-        ({ normalized, fingerprint }) =>
-          existingByExternalId.get(normalized.externalId)
-            ?.content_fingerprint !== fingerprint,
-      )
-      .map(({ normalized }) => normalized.externalId),
+      .filter((job) => job.existingFingerprint !== job.fingerprint)
+      .map((job) => JSON.stringify([job.source, job.externalId])),
   );
 
   const { data: savedJobs, error: saveError } = preparedJobs.length
-    ? await supabase
-        .from('jobs')
-        .upsert(
-          preparedJobs.map(({ normalized: job, fingerprint }) => ({
-            user_id: userId,
-            source,
-            external_id: job.externalId,
-            canonical_url: job.canonicalUrl,
-            title: job.title,
-            company: job.company,
-            description: job.description,
-            location_text: job.locationText,
-            region: job.region,
-            country: job.country,
-            work_mode: job.workMode,
-            employment_type: job.employmentType,
-            published_at: job.publishedAt,
-            last_seen_at: now.toISOString(),
-            content_fingerprint: fingerprint,
-            active: true,
-            raw_payload: job.rawPayload,
-          })),
-          { onConflict: 'user_id,source,external_id' },
-        )
-        .select(
-          'id,source,external_id,title,company,description,location_text,region,country,work_mode,employment_type,canonical_url,published_at',
-        )
+    ? await databaseOperation(
+        () =>
+          supabase
+            .from('jobs')
+            .upsert(
+              preparedJobs.map(
+                ({
+                  normalized: job,
+                  fingerprint,
+                  source: resolvedSource,
+                  externalId,
+                }) => ({
+                  user_id: userId,
+                  source: resolvedSource,
+                  external_id: externalId,
+                  canonical_url: job.canonicalUrl,
+                  title: job.title,
+                  company: job.company,
+                  description: job.description,
+                  location_text: job.locationText,
+                  region: job.region,
+                  country: job.country,
+                  work_mode: job.workMode,
+                  employment_type: job.employmentType,
+                  published_at: job.publishedAt,
+                  last_seen_at: now.toISOString(),
+                  content_fingerprint: fingerprint,
+                  active: true,
+                  raw_payload: job.rawPayload,
+                }),
+              ),
+              { onConflict: 'user_id,source,external_id' },
+            )
+            .select(
+              'id,source,external_id,title,company,description,location_text,region,country,work_mode,employment_type,canonical_url,published_at',
+            ),
+        'Save source jobs',
+        true,
+      )
     : { data: [], error: null };
-  if (saveError) throw saveError;
+  if (saveError)
+    throw new Error('Save source jobs: ' + errorMessage(saveError));
 
   return {
     jobs: (savedJobs ?? []) as SavedJob[],
     changedJobIds: new Set(
       (savedJobs ?? [])
-        .filter((job) => changedExternalIds.has(job.external_id))
+        .filter((job) =>
+          changedKeys.has(JSON.stringify([job.source, job.external_id])),
+        )
         .map((job) => job.id as string),
     ),
   };
@@ -545,7 +585,7 @@ async function persistSourceStatuses(
     ),
   );
   const failure = results.find((result) => result.error)?.error;
-  if (failure) throw failure;
+  if (failure) throw new Error('Save source status: ' + errorMessage(failure));
 }
 
 async function sha256(value: string): Promise<string> {

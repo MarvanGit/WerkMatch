@@ -1,3 +1,4 @@
+import { errorMessage } from '../lib/supabase/operation.ts';
 import { createClient } from '@supabase/supabase-js';
 
 import { runSearchForUser } from '../lib/search/run-search.ts';
@@ -36,9 +37,7 @@ for (const schedule of dueSchedules) {
     );
   } catch (searchError) {
     failures += 1;
-    console.error(
-      `Scheduled search failed: ${searchError instanceof Error ? searchError.message : 'unknown error'}`,
-    );
+    console.error(`Scheduled search failed: ${errorMessage(searchError)}`);
   }
 }
 

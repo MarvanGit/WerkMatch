@@ -1,3 +1,4 @@
+import { requestOpenCode } from './transport.ts';
 import { matchEvaluationOutputSchema } from '../domain/contracts.ts';
 
 type CandidateFact = {
@@ -83,23 +84,16 @@ const matchEvaluationJsonSchema = {
 
 export const matchPromptVersion = 'match-v1';
 
-export async function evaluateJobWithOpenCode(input: {
-  job: JobForMatching;
-  facts: CandidateFact[];
-}) {
-  const apiKey = process.env.OPENCODE_GO_API_KEY;
+export async function evaluateJobWithOpenCode(
+  input: {
+    job: JobForMatching;
+    facts: CandidateFact[];
+  },
+  sessionId?: string,
+) {
   const model = process.env.OPENCODE_MATCH_MODEL ?? 'gpt-5.6-luna';
-
-  if (!apiKey) throw new Error('OPENCODE_GO_API_KEY is not configured.');
-
-  const response = await fetch('https://opencode.ai/zen/go/v1/responses', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'User-Agent': 'WerkMatch/0.1 (+https://github.com/MarvanGit/WerkMatch)',
-    },
-    body: JSON.stringify({
+  const payload = await requestOpenCode(
+    {
       model,
       input: [
         {
@@ -129,13 +123,9 @@ export async function evaluateJobWithOpenCode(input: {
         },
       },
       max_output_tokens: 1_600,
-    }),
-  });
-
-  const payload = (await response.json()) as Record<string, unknown>;
-  if (!response.ok) {
-    throw new Error(`OpenCode matching failed with status ${response.status}.`);
-  }
+    },
+    sessionId,
+  );
 
   const outputText = readOutputText(payload);
   const parsed = matchEvaluationOutputSchema.safeParse(JSON.parse(outputText));
