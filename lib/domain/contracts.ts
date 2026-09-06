@@ -41,6 +41,16 @@ export const matchEvaluationOutputSchema = z.object({
 export const tailoringPlanOutputSchema = z.object({
   documentLanguage: z.literal('de'),
   factPriorityIds: z.array(z.string().min(1)).max(60),
+  jobAlignment: z
+    .array(
+      z.object({
+        requirementQuote: z.string().min(15).max(240),
+        paragraphIndex: z.union([z.literal(1), z.literal(2)]),
+        evidenceFactIds: z.array(z.string().min(1)).min(1).max(8),
+      }),
+    )
+    .length(2)
+    .optional(),
   coverLetter: z.object({
     subject: z.string().min(1).max(300),
     salutation: z.string().min(1).max(200),

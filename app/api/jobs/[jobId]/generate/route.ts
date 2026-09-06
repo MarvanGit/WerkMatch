@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { coverLetterRequirements } from '@/lib/documents/cover-letter-policy';
 import { createClient } from '@/lib/supabase/server';
 import { triggerDocumentWorker } from '@/lib/workers/github';
 
@@ -54,32 +55,39 @@ export async function POST(_request: Request, context: RouteContext) {
   }
 
   const { jobId } = await context.params;
-  const [{ data: profile }, { data: job }, { data: activeGeneration }] =
-    await Promise.all([
-      supabase
-        .from('candidate_profiles')
-        .select(
-          'profile_version,master_cv_object_key,latex_template_object_key',
-        )
-        .eq('user_id', user.id)
-        .maybeSingle(),
-      supabase
-        .from('jobs')
-        .select('id')
-        .eq('id', jobId)
-        .eq('user_id', user.id)
-        .eq('active', true)
-        .maybeSingle(),
-      supabase
-        .from('generation_requests')
-        .select('id,status,error_message,requested_at,completed_at')
-        .eq('user_id', user.id)
-        .eq('job_id', jobId)
-        .in('status', ['queued', 'generating', 'compiling'])
-        .order('requested_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
+  const [
+    { data: profile },
+    { data: job },
+    { data: activeGeneration },
+    factsResult,
+  ] = await Promise.all([
+    supabase
+      .from('candidate_profiles')
+      .select('profile_version,master_cv_object_key,latex_template_object_key')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('jobs')
+      .select('id')
+      .eq('id', jobId)
+      .eq('user_id', user.id)
+      .eq('active', true)
+      .maybeSingle(),
+    supabase
+      .from('generation_requests')
+      .select('id,status,error_message,requested_at,completed_at')
+      .eq('user_id', user.id)
+      .eq('job_id', jobId)
+      .in('status', ['queued', 'generating', 'compiling'])
+      .order('requested_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('candidate_facts')
+      .select('fact_key,category,title,summary,details,tags,order_index')
+      .eq('user_id', user.id)
+      .eq('verification_status', 'verified'),
+  ]);
 
   if (!profile) {
     return NextResponse.json(
@@ -95,6 +103,25 @@ export async function POST(_request: Request, context: RouteContext) {
   }
   if (!job) {
     return NextResponse.json({ error: 'Job not found.' }, { status: 404 });
+  }
+  if (factsResult.error) {
+    return NextResponse.json(
+      { error: 'Could not load verified cover-letter facts.' },
+      { status: 503 },
+    );
+  }
+  try {
+    coverLetterRequirements(factsResult.data ?? []);
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Confirm your cover-letter facts first.',
+      },
+      { status: 409 },
+    );
   }
   if (activeGeneration) {
     const dispatchWarning =

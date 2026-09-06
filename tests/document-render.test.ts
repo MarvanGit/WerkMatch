@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  escapeLatex,
   prepareLatexForTectonic,
   renderTailoredDocuments,
 } from '../lib/documents/render.ts';
@@ -189,7 +190,7 @@ Old closing
     ...plan.coverLetter.paragraphs.map((paragraph) => paragraph.text),
     plan.coverLetter.closing,
   ]) {
-    assert.ok(coverLetterTex.includes(tailored));
+    assert.ok(coverLetterTex.includes(tailored.replaceAll('ß', '\\ss{}')));
   }
   assert.ok(
     coverLetterTex.includes(`{\\large\\textbf{${plan.coverLetter.subject}}}`),
@@ -207,7 +208,7 @@ Old closing
     'Gesprächs',
     'Grüßen',
   ]) {
-    assert.ok(coverLetterTex.includes(germanSpelling));
+    assert.ok(coverLetterTex.includes(escapeLatex(germanSpelling)));
   }
   for (const removed of [
     'Old Company',
@@ -221,4 +222,11 @@ Old closing
   ]) {
     assert.ok(!coverLetterTex.includes(removed));
   }
+});
+
+void test('renders German sharp s through T1-aware TeX commands', () => {
+  assert.equal(
+    escapeLatex('Grüßen und größere Aufgaben'),
+    'Grü\\ss{}en und grö\\ss{}ere Aufgaben',
+  );
 });

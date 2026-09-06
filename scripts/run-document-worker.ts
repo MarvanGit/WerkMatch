@@ -13,7 +13,7 @@ import {
   type CandidateFactForDocuments,
 } from '../lib/ai/documents.ts';
 import { renderTailoredDocuments } from '../lib/documents/render.ts';
-import { tailoringPlanOutputSchema } from '../lib/domain/contracts.ts';
+import { reusableTailoringPlan } from '../lib/documents/cover-letter-policy.ts';
 import { sendTelegramDocumentsReady } from '../lib/notifications/telegram.ts';
 
 const supabaseUrl = requiredEnvironmentVariable('NEXT_PUBLIC_SUPABASE_URL');
@@ -36,6 +36,7 @@ type GenerationRequest = {
   template_version: number;
   tailoring_plan: unknown;
   model_id: string | null;
+  prompt_version: string | null;
 };
 
 await requeueStaleRequests();
@@ -78,7 +79,7 @@ async function claimNextRequest(): Promise<GenerationRequest | null> {
   const { data: pending, error: pendingError } = await supabase
     .from('generation_requests')
     .select(
-      'id,user_id,job_id,match_evaluation_id,status,profile_version,template_version,tailoring_plan,model_id',
+      'id,user_id,job_id,match_evaluation_id,status,profile_version,template_version,tailoring_plan,model_id,prompt_version',
     )
     .eq('status', 'queued')
     .order('requested_at')
@@ -93,7 +94,7 @@ async function claimNextRequest(): Promise<GenerationRequest | null> {
     .eq('id', pending.id)
     .eq('status', 'queued')
     .select(
-      'id,user_id,job_id,match_evaluation_id,status,profile_version,template_version,tailoring_plan,model_id',
+      'id,user_id,job_id,match_evaluation_id,status,profile_version,template_version,tailoring_plan,model_id,prompt_version',
     )
     .maybeSingle();
   if (claimError) throw claimError;
@@ -204,12 +205,15 @@ async function processRequest(request: GenerationRequest): Promise<boolean> {
       if (profileUpdateError) throw profileUpdateError;
     }
 
-    const storedPlan = tailoringPlanOutputSchema.safeParse(
+    const storedPlan = reusableTailoringPlan(
       request.tailoring_plan,
+      request.prompt_version,
+      facts,
+      jobResult.data,
     );
-    const { plan, model } = storedPlan.success
+    const { plan, model } = storedPlan
       ? {
-          plan: storedPlan.data,
+          plan: storedPlan,
           model: request.model_id ?? 'stored-tailoring-plan',
         }
       : await createTailoringPlan(

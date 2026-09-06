@@ -694,6 +694,10 @@ export function escapeLatex(value: string): string {
     _: '\\_',
     '~': '\\textasciitilde{}',
     '^': '\\textasciicircum{}',
+    // T1 fonts under XeTeX/Tectonic map raw U+00DF to the capital SS slot.
+    // Use TeX's encoding-aware commands for generated text only.
+    ß: '\\ss{}',
+    ẞ: '\\SS{}',
   };
   const normalized = value
     .normalize('NFC')
@@ -704,7 +708,7 @@ export function escapeLatex(value: string): string {
     .replace(/[‐‑]/g, '-')
     .replace(/\u00a0/g, ' ');
   return normalized.replace(
-    /[\\{}$&#%_~^]/g,
+    /[\\{}$&#%_~^ßẞ]/g,
     (character) => replacements[character],
   );
 }

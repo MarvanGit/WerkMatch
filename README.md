@@ -78,6 +78,26 @@ tailoring plan on compilation retries, and caches installed dependencies. The
 renderer removes only explicit TeX engine driver flags such as `pdftex` before
 Tectonic compilation; CV content and styling commands remain unchanged.
 
+## Cover-letter consistency
+
+Every new letter uses four paragraphs: job-specific motivation and current
+study status, relevant technical skills, practical professional experience,
+and availability plus an invitation to talk. User-confirmed German statements
+are maintained centrally in the verified education fact's
+`details.cover_letter_study_de` and `details.cover_letter_availability_de`.
+The application inserts them verbatim into the first and last paragraphs.
+Update these fields when the semester or availability changes; no personal
+availability is hardcoded in the generator.
+
+The skills paragraph must name at least two verified technical skills, and the
+experience paragraph must name a verified employer and develop a concrete
+example. Both paragraphs carry internal evidence connecting them to exact
+requirements quoted from the job description. These citations are validation
+metadata and do not appear in the PDF. Missing sections trigger one correction
+attempt; incomplete output is not saved as a completed letter. The worker
+revalidates cached plans against the current prompt version and profile facts.
+Existing completed PDFs remain available; generating again uses the new rules.
+
 ## Local setup
 
 1. Copy `.env.example` to `.env.local` and fill in the required values.
