@@ -1,6 +1,36 @@
 # WerkMatch
 
-WerkMatch is a private job-search workspace for technical working-student roles. It discovers and ranks eligible jobs, sends Telegram alerts, and generates a tailored CV and cover letter only when the user explicitly requests them.
+WerkMatch has a public portfolio homepage and an interactive fictional demo, with invite-only private job-search workspaces for technical working-student roles. It discovers and ranks eligible jobs, sends account-specific Telegram alerts, and generates a tailored CV and cover letter when the user requests them.
+
+## Public demo and private accounts
+
+Anonymous visitors see the public homepage at `/` and can explore `/demo` without any database writes, AI requests, or messages. Signed-in visitors retain the existing job radar at `/`. New accounts are directed to `/onboarding`.
+
+Onboarding accepts self-contained UTF-8 `.tex` CV and cover-letter templates, up to 200 KB each. CV text is sent to the configured OpenCode service to extract draft facts. Users edit and confirm those facts and their German study/availability statements before saving. A compatible cover-letter starter is available at `/templates/cover-letter.tex`; users must replace its sender details. Arbitrary PDF/Word templates and custom TeX dependency bundles are not supported in this release.
+
+Each account chooses language levels, optional role keywords, Bavaria-plus-remote or remote-only coverage, schedule, and Telegram destination. New schedules and notifications default to off. Daily limits are 6 searches (at least 15 minutes apart), 8 document requests, and 3 profile extractions. LaTeX runs in untrusted mode with a timeout and without service credentials in its environment.
+
+## Invite an account
+
+Apply all Supabase migrations first. An administrator-only, short-lived email allowlist enforces invite-only provisioning at the Auth database boundary, including direct Auth API signup attempts. Existing users remain valid. Do not use ordinary self-signup or dashboard invitation creation without provisioning the allowlist.
+
+With the existing server credentials configured locally and `NEXT_PUBLIC_SITE_URL` set to the production URL, run:
+
+```powershell
+node --env-file=.env.local scripts/create-invite.ts person@example.com
+```
+
+The script creates the account and prints a one-time setup link. It does not send email. Share the link privately with its intended recipient; it leads to password setup and then onboarding. Treat the link as a credential. Existing users can edit their details through **Profile → Edit profile and templates**. Profiles cannot be replaced while document generation is pending.
+
+## Validation
+
+```powershell
+npx tsc --noEmit
+npm run lint
+node --test tests/*.test.ts
+```
+
+The opt-in `node --env-file=.env.local tests/multi-user.integration.ts` check requires the local preview at port 3000 and live Supabase credentials. It creates temporary accounts, uploads fictional templates, calls the configured AI service once, checks profile persistence, invitation acceptance, quotas and cross-account isolation, and removes its own accounts/files. It does not run job searches or send messages.
 
 ## Matching policy
 
@@ -67,8 +97,7 @@ source and styling exactly. If the Skills section contains recognizable
 `\\cvitem` or `\\resumeSubItem` entries, only those complete entries may be
 reordered using verified fact priority; sections and entry text are never
 rewritten. A separate cover-letter template can be stored in
-`cover_letter_template_object_key` (or configured with
-`COVER_LETTER_TEMPLATE_OBJECT_KEY`). WerkMatch preserves that template's
+`cover_letter_template_object_key` for that account. WerkMatch preserves that template's
 sender, layout, closing, and signature, replacing only the recipient, subject,
 salutation, and evidence-bound body.
 
@@ -102,10 +131,8 @@ Existing completed PDFs remain available; generating again uses the new rules.
 
 1. Copy `.env.example` to `.env.local` and fill in the required values.
 2. Apply the SQL migrations in `supabase/migrations` to the Supabase project.
-3. Create the authorized user in Supabase Authentication.
-4. Upload the CV and cover-letter templates to the private `candidate-assets`
-   bucket and set their object keys on the candidate profile. The cover-letter
-   key may alternatively be provided with `COVER_LETTER_TEMPLATE_OBJECT_KEY`.
+3. Provision an account using the invitation script described above.
+4. Accept its setup link, set a password, and upload templates through onboarding.
 5. Run `npm install` and `npm run dev`.
 
 Never commit `.env.local`, CV files, photographs, API keys, Telegram tokens, or generated application documents.

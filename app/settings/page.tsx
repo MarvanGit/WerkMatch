@@ -16,7 +16,7 @@ export default async function SettingsPage() {
 
   const { data: schedule } = await supabase
     .from('search_schedules')
-    .select('enabled,interval_minutes,notification_threshold,telegram_enabled')
+    .select('enabled,interval_minutes,notification_threshold,telegram_enabled,telegram_chat_id')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -29,10 +29,11 @@ export default async function SettingsPage() {
       <Card className="bg-card/90">
         <CardContent>
           <SearchSettingsForm
-            enabled={schedule?.enabled ?? true}
+            enabled={schedule?.enabled ?? false}
             intervalMinutes={schedule?.interval_minutes ?? 360}
             notificationThreshold={schedule?.notification_threshold ?? 75}
-            telegramEnabled={schedule?.telegram_enabled ?? true}
+            telegramEnabled={schedule?.telegram_enabled ?? false}
+            telegramChatId={schedule?.telegram_chat_id ?? ''}
           />
         </CardContent>
       </Card>

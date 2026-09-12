@@ -74,7 +74,7 @@ export async function runSearchForUser(
   const [profileResult, factsResult, scheduleResult] = await Promise.all([
     supabase
       .from('candidate_profiles')
-      .select('profile_version')
+      .select('profile_version,german_level,english_level,search_policy')
       .eq('user_id', userId)
       .single(),
     supabase
@@ -99,7 +99,20 @@ export async function runSearchForUser(
     throw new Error('Verify your candidate facts before running a search.');
   }
 
+  const { data: allowed, error: quotaError } = await supabase.rpc('consume_werkmatch_usage', { requested_user: userId, requested_operation: 'search' });
+  if (quotaError) throw new Error('Search usage controls are unavailable. Please try again later.');
+  if (!allowed) throw new Error('Search limit reached: allow 15 minutes between searches, up to 6 per day.');
+  const preferences = {
+    germanLevel: profileResult.data.german_level,
+    englishLevel: profileResult.data.english_level,
+    location: profileResult.data.search_policy?.location ?? 'bavaria-and-remote',
+    roleKeywords: profileResult.data.search_policy?.roleKeywords ?? '',
+  };
   const collections = await collectSourceJobs();
+  const keywords = preferences.roleKeywords.split(',').map((word: string) => word.trim().toLowerCase()).filter(Boolean);
+  for (const collection of collections) collection.jobs = collection.jobs.filter(job =>
+    (preferences.location !== 'remote-only' || job.workMode === 'remote') &&
+    (!keywords.length || keywords.some((word: string) => `${job.title} ${job.description}`.toLowerCase().includes(word))));
   if (
     collections.every(
       (collection) => collection.error && !collection.jobs.length,
@@ -137,7 +150,7 @@ export async function runSearchForUser(
     (batch) =>
       supabase
         .from('match_evaluations')
-        .select('job_id,notified_at')
+        .select('job_id,notified_at,profile_version')
         .eq('user_id', userId)
         .in('job_id', batch),
     'Read existing evaluations',
@@ -151,7 +164,7 @@ export async function runSearchForUser(
   );
   const jobsToEvaluate = distinctSavedJobs
     .filter(
-      (job) => changedJobIds.has(job.id) || !evaluationByJobId.has(job.id),
+      (job) => changedJobIds.has(job.id) || !evaluationByJobId.has(job.id) || evaluationByJobId.get(job.id)?.profile_version !== profileResult.data.profile_version,
     )
     .sort((left, right) => {
       const leftDate =
@@ -166,7 +179,7 @@ export async function runSearchForUser(
     scheduleResult.data?.notification_threshold ??
     Number(process.env.MATCH_NOTIFICATION_THRESHOLD ?? 75);
   const telegramChatId =
-    scheduleResult.data?.telegram_chat_id ?? process.env.TELEGRAM_CHAT_ID;
+    scheduleResult.data?.telegram_chat_id;
   const telegramEnabled =
     (scheduleResult.data?.telegram_enabled ?? true) && Boolean(telegramChatId);
   let evaluated = 0;
@@ -188,9 +201,10 @@ export async function runSearchForUser(
           employmentType: job.employment_type,
         },
         facts: factsResult.data,
+        preferences,
       });
       const locationEligible =
-        job.region === 'Bavaria' ||
+        (preferences.location !== 'remote-only' && job.region === 'Bavaria') ||
         (job.work_mode === 'remote' && evaluation.remoteFromGermanyConfirmed);
       const eligible = evaluation.eligible && locationEligible;
       const { data: storedEvaluation, error: evaluationError } = await supabase

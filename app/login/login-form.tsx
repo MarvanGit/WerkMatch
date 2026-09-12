@@ -49,8 +49,7 @@ export function LoginForm() {
           />
         </div>
         <FieldDescription>
-          Use the password from the Supabase user you created. It is sent only
-          to Supabase Auth.
+          Use the password you set when accepting your invitation.
         </FieldDescription>
       </Field>
 

@@ -103,6 +103,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
             </div>
           </div>
 
+          <Link href="/onboarding" className="text-sm font-medium text-primary underline underline-offset-4">Edit profile and templates</Link>
           <Badge
             className={
               draftCount === 0

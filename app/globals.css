@@ -134,6 +134,9 @@ body {
 }
 
 @layer base {
+  ::selection { background: var(--secondary); color: var(--secondary-foreground); }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+  input, textarea { caret-color: var(--primary); }
   * {
     @apply border-border outline-ring/50;
   }

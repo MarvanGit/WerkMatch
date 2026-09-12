@@ -5,9 +5,10 @@ import { createClient } from '@/lib/supabase/server';
 
 const settingsSchema = z.object({
   enabled: z.boolean(),
-  intervalMinutes: z.number().int().min(15).max(10_080),
+  intervalMinutes: z.number().int().min(240).max(10_080),
   notificationThreshold: z.number().int().min(0).max(100),
   telegramEnabled: z.boolean(),
+  telegramChatId: z.string().trim().regex(/^-?[0-9]{1,20}$|^$/).optional(),
 });
 
 export async function POST(request: Request) {
@@ -31,15 +32,21 @@ export async function POST(request: Request) {
     );
   }
 
+  if (input.data.enabled) {
+    const { count, error } = await supabase.from('candidate_facts').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('verification_status', 'verified');
+    if (error || !count) return NextResponse.json({ error: 'Complete your profile and verify your facts before enabling automation.' }, { status: 409 });
+  }
   const now = new Date();
   const { data: currentSchedule } = await supabase
     .from('search_schedules')
-    .select('last_run_at')
+    .select('last_run_at,telegram_chat_id')
     .eq('user_id', user.id)
     .maybeSingle();
   const cadenceAnchor = currentSchedule?.last_run_at
     ? new Date(currentSchedule.last_run_at).getTime()
     : now.getTime();
+  const telegramChatId = input.data.telegramChatId ?? currentSchedule?.telegram_chat_id ?? '';
+  if (input.data.telegramEnabled && !telegramChatId) return NextResponse.json({ error: 'Enter your Telegram chat ID before enabling alerts.' }, { status: 400 });
   const nextRunAt = input.data.enabled
     ? new Date(
         Math.max(
@@ -55,6 +62,7 @@ export async function POST(request: Request) {
       interval_minutes: input.data.intervalMinutes,
       notification_threshold: input.data.notificationThreshold,
       telegram_enabled: input.data.telegramEnabled,
+      telegram_chat_id: telegramChatId || null,
       next_run_at: nextRunAt,
     },
     { onConflict: 'user_id' },

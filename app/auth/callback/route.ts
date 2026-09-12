@@ -48,6 +48,6 @@ export async function GET(request: NextRequest) {
 }
 
 function safeRelativePath(value: string) {
-  if (!value.startsWith('/') || value.startsWith('//')) return '/';
+  if (!value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return '/';
   return value;
 }

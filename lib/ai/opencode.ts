@@ -88,6 +88,7 @@ export async function evaluateJobWithOpenCode(
   input: {
     job: JobForMatching;
     facts: CandidateFact[];
+    preferences?: { germanLevel: string; englishLevel: string; location: string; roleKeywords: string };
   },
   sessionId?: string,
 ) {
@@ -104,7 +105,7 @@ export async function evaluateJobWithOpenCode(
             'The target is a technical Werkstudent or Working Student role.',
             'Roles in Bavaria may be onsite, hybrid, or remote.',
             'Roles outside Bavaria are eligible only when the listing explicitly permits remote work from Germany.',
-            'The candidate has German B1. A higher German requirement is a risk and score penalty, not an automatic rejection.',
+            'Use supplied preferences for candidate language levels, role focus, and remote-only selection. A higher German requirement is a risk and score penalty, not an automatic rejection. Never assume a language level if it is not supplied.',
             'Use only the supplied verified candidate facts. Never infer missing experience.',
             'Every candidateFactId must exactly match a supplied fact_key.',
           ].join(' '),

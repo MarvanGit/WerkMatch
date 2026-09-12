@@ -2,17 +2,19 @@
 
 ## Product and audience
 
-WerkMatch is Marwan's private application workspace for finding and acting on technical working-student opportunities in Germany. It is an authenticated personal tool, not a public job marketplace.
+WerkMatch combines a public portfolio homepage and fictional interactive demo with private, invite-only application workspaces for technical working-student opportunities in Germany. Recruiters and engineering managers can explore the demo without an account. Each invited candidate owns their profile, templates, matches, schedule, notifications, and documents.
 
 ## Core job
 
 - Scrape public job pages on demand and on a configurable schedule.
 - Find Werkstudent / Working Student software and technology roles.
 - Accept on-site and hybrid roles anywhere in Bavaria; outside Bavaria, accept roles only when they are remote from Germany.
-- Rank roles against verified facts from Marwan's master CV.
-- Treat English as fluent and German B1 as an application risk or warning, not an automatic rejection.
+- Rank roles against each account's confirmed CV facts and configured language levels.
+- Let candidates choose Bavaria plus Germany-remote coverage or remote-only coverage, with optional role keyword filters. Higher German requirements are a risk, not automatic rejection.
 - Send Telegram notifications for relevant matches.
 - Generate tailored CV and cover-letter documents only after an explicit request.
+- Onboard users with self-contained LaTeX CV and cover-letter templates, editable extracted facts, and confirmed German study/availability statements. PDF/Word import is outside this release.
+- Keep new accounts' schedules and notifications disabled until they choose to enable them. Enforce daily limits of 6 searches, 8 document requests, and 3 profile extractions.
 
 ## Document truth
 
@@ -25,9 +27,9 @@ WerkMatch is Marwan's private application workspace for finding and acting on te
 ## Application workflow
 
 - Every discovered match has a dedicated detail page with the full listing, match explanation, verified evidence, document-generation action, and original listing link.
-- A role enters the Applications workspace only when Marwan explicitly confirms that he applied.
+- A role enters the Applications workspace only when its user explicitly confirms that they applied.
 - Application status is user-controlled and can move through Applied, Screening, Interview, Offer, Rejected, or Withdrawn.
-- The homepage keeps its compact right-hand match preview; clicking a job card opens the dedicated detail page.
+- The authenticated workspace homepage keeps its compact right-hand match preview; clicking a job card opens the dedicated detail page. The public homepage uses a clearly labelled fictional example.
 
 ## Technical constraints
 

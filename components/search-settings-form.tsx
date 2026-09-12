@@ -12,6 +12,7 @@ type SearchSettingsFormProps = {
   intervalMinutes: number;
   notificationThreshold: number;
   telegramEnabled: boolean;
+  telegramChatId?: string;
 };
 
 export function SearchSettingsForm(props: SearchSettingsFormProps) {
@@ -33,6 +34,7 @@ export function SearchSettingsForm(props: SearchSettingsFormProps) {
           intervalMinutes: Number(formData.get('intervalMinutes')),
           notificationThreshold: Number(formData.get('notificationThreshold')),
           telegramEnabled: formData.get('telegramEnabled') === 'on',
+          telegramChatId: formData.get('telegramChatId'),
         }),
       });
       const result = (await response.json()) as { error?: string };
@@ -60,7 +62,7 @@ export function SearchSettingsForm(props: SearchSettingsFormProps) {
         </legend>
         <CheckboxRow
           defaultChecked={props.enabled}
-          description="Allow scheduled searches to run at the cadence below. Manual searches remain available."
+          description="Run searches automatically after saving. Each account has up to 6 searches and 8 document generations per day, including manual requests."
           label="Scheduled discovery"
           name="enabled"
         />
@@ -72,8 +74,7 @@ export function SearchSettingsForm(props: SearchSettingsFormProps) {
             id="intervalMinutes"
             name="intervalMinutes"
           >
-            <option value="60">Every hour</option>
-            <option value="180">Every 3 hours</option>
+            <option value="240">Every 4 hours</option>
             <option value="360">Every 6 hours</option>
             <option value="720">Every 12 hours</option>
             <option value="1440">Every 24 hours</option>
@@ -85,6 +86,7 @@ export function SearchSettingsForm(props: SearchSettingsFormProps) {
         <legend className="font-heading text-lg font-semibold">
           Telegram alerts
         </legend>
+        <div className="space-y-2"><Label htmlFor="telegramChatId">Your Telegram chat ID</Label><Input id="telegramChatId" name="telegramChatId" defaultValue={props.telegramChatId ?? ''} placeholder="123456789" pattern="-?[0-9]{1,20}" /><p className="text-xs leading-relaxed text-muted-foreground">Start a conversation with the WerkMatch bot first, then enter your own chat ID. Alerts are sent only to this account’s configured destination.</p></div>
         <CheckboxRow
           defaultChecked={props.telegramEnabled}
           description="Send a Telegram message when a newly evaluated job reaches your threshold."

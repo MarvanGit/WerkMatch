@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 
 import { manualJobSchema } from '@/lib/domain/contracts';
-import { defaultMatchPolicy } from '@/lib/domain/match-policy';
 import { isBavariaLocation } from '@/lib/sources/job-filter';
 import { createClient } from '@/lib/supabase/server';
 
@@ -37,10 +36,8 @@ export async function POST(request: Request) {
       {
         user_id: user.id,
         display_name: displayName,
-        target_roles: defaultMatchPolicy.targetRoleFamilies,
-        search_policy: defaultMatchPolicy,
       },
-      { onConflict: 'user_id' },
+      { onConflict: 'user_id', ignoreDuplicates: true },
     );
 
   if (profileError) {

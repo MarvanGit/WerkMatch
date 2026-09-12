@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const tokenHash = request.nextUrl.searchParams.get('token_hash');
   const type = request.nextUrl.searchParams.get('type') as EmailOtpType | null;
   const next = safeRelativePath(
-    request.nextUrl.searchParams.get('next') ?? '/',
+    request.nextUrl.searchParams.get('next') ?? (type === 'invite' || type === 'recovery' ? '/account/password' : '/'),
   );
 
   if (tokenHash && type) {
@@ -28,6 +28,6 @@ export async function GET(request: NextRequest) {
 }
 
 function safeRelativePath(value: string) {
-  if (!value.startsWith('/') || value.startsWith('//')) return '/';
+  if (!value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return '/';
   return value;
 }

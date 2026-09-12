@@ -1,5 +1,6 @@
 import { LockKeyhole, Sparkles } from 'lucide-react';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 
 import {
   Card,
@@ -53,8 +54,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               Sign in to your job radar
             </CardTitle>
             <CardDescription className="mx-auto mt-1 max-w-sm leading-relaxed">
-              Use your private Supabase account to access matches and
-              application documents.
+              Private accounts are invite-only. Sign in with your email and password to access your own matches and documents.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
@@ -75,8 +75,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </Card>
 
         <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
-          WerkMatch passes your credentials securely to Supabase Auth and never
-          stores your password.
+          Just exploring? <Link href="/demo" className="text-primary underline underline-offset-4">Try the public demo</Link> or <Link href="/" className="text-primary underline underline-offset-4">visit the homepage</Link>.
         </p>
       </div>
     </main>

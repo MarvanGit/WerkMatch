@@ -41,6 +41,7 @@ next-env.d.ts
 /outputs/
 /work/
 /.werkmatch-validation/
+/.impeccable/review/
 
 # Supabase CLI local project metadata
 /supabase/.branches/

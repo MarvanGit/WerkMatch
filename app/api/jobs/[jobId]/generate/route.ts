@@ -154,8 +154,8 @@ export async function POST(_request: Request, context: RouteContext) {
     .single();
   if (error) {
     return NextResponse.json(
-      { error: 'Could not queue document generation.' },
-      { status: 500 },
+      { error: error.message.includes('Daily generation limit') ? 'The limit of 8 document generations per day has been reached. Try again tomorrow.' : 'Could not queue document generation.' },
+      { status: error.message.includes('Daily generation limit') ? 429 : 500 },
     );
   }
   const dispatchWarning = await dispatchWorkerSafely();

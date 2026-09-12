@@ -35,6 +35,7 @@ import { RunSearchButton } from '@/components/run-search-button';
 import { GenerateDocumentsButton } from '@/components/generate-documents-button';
 import { MobileWorkspaceMenu } from '@/components/workspace-chrome';
 import { createClient } from '@/lib/supabase/server';
+import { PublicHome } from '@/components/public-home';
 
 export const dynamic = 'force-dynamic';
 
@@ -125,7 +126,11 @@ export default async function Home({ searchParams }: HomeProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect('/login');
+  if (!user) return <PublicHome />;
+
+  const { data: candidateProfile } = await supabase.from('candidate_profiles')
+    .select('master_cv_object_key,german_level,search_policy').eq('user_id', user.id).maybeSingle();
+  if (candidateProfile && !candidateProfile.master_cv_object_key) redirect('/onboarding');
 
   const weekStart = new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1_000);
   const [
@@ -236,7 +241,7 @@ export default async function Home({ searchParams }: HomeProps) {
   );
   const telegramReady =
     (schedule?.telegram_enabled ?? true) &&
-    Boolean(schedule?.telegram_chat_id ?? process.env.TELEGRAM_CHAT_ID);
+    Boolean(schedule?.telegram_chat_id);
   const stats = [
     {
       label: 'New this week',
@@ -428,7 +433,7 @@ export default async function Home({ searchParams }: HomeProps) {
             </div>
             <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-sm">
               <CheckCircle2 className="size-4 text-primary" />
-              German B1 applications remain eligible
+              Language requirements are assessed against your profile
             </div>
           </section>
 

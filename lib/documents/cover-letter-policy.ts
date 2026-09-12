@@ -5,7 +5,7 @@ import {
 } from '../domain/contracts.ts';
 
 export const documentPromptVersion =
-  'documents-v7-required-cover-letter-content';
+  'documents-v8-personal-candidate-content';
 
 export function coverLetterRequirements(facts: CandidateFactForDocuments[]) {
   const study = facts.find(
@@ -124,12 +124,12 @@ export function validateCoverLetterPlan(
     .filter(
       (fact) =>
         fact.category === 'experience' &&
-        typeof fact.details.organization === 'string',
+        typeof fact.details.organization === 'string' && Boolean(fact.details.organization.trim()),
     );
   if (
-    !employers.some((fact) =>
+    !(employers.length ? employers.some((fact) =>
       containsTerm(paragraphs[2].text, String(fact.details.organization)),
-    ) ||
+    ) : paragraphs[2].evidenceFactIds.map(id => factById.get(id)!).some(fact => fact.category === 'project' && containsTerm(paragraphs[2].text, fact.title))) ||
     paragraphs[2].text.length < 300
   )
     throw new Error(

@@ -108,6 +108,14 @@ void test('missing profile availability fails before any generation', () => {
     /Confirm your current study semester and availability/,
   );
 });
+void test('a candidate without an employer can cite a verified practical project', () => {
+  const projectFacts = facts.map(fact => fact.category === 'experience' ? { ...fact, category: 'project', title: 'Example Labs', details: {} } : fact);
+  const plan = assembleRequiredContent(draft(), projectFacts);
+  plan.coverLetter.paragraphs[2].text = plan.coverLetter.paragraphs[2].text.replace('Bei Example Labs', 'Im Projekt Example Labs');
+  validateCoverLetterPlan(plan, projectFacts, job);
+  plan.coverLetter.paragraphs[2].text = plan.coverLetter.paragraphs[2].text.replace('Example Labs', 'Unverified Project');
+  assert.throws(() => validateCoverLetterPlan(plan, projectFacts, job), /experience paragraph/);
+});
 void test('letters missing technical skills or professional experience are rejected', () => {
   for (const index of [1, 2]) {
     const plan = assembleRequiredContent(draft(), facts);
