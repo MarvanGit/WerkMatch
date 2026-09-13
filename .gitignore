@@ -41,7 +41,11 @@ next-env.d.ts
 /outputs/
 /work/
 /.werkmatch-validation/
-/.impeccable/review/
+/.openai/
+/.codex/
+/.agents/
+/.impeccable/
+/.sites-runtime/
 
 # Supabase CLI local project metadata
 /supabase/.branches/
