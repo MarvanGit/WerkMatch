@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { runSearchForUser } from '@/lib/search/run-search';
 import { createClient } from '@/lib/supabase/server';
 
+export const maxDuration = 300;
+
 export async function POST() {
   const supabase = await createClient();
   const {

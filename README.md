@@ -42,15 +42,15 @@ flowchart LR
     DB --> Notify[Telegram alerts]
 ```
 
-| Area | Implementation |
-| --- | --- |
-| Web application | TypeScript, React 19, Vinext, Tailwind CSS, Cloudflare-compatible server routes |
-| Identity and data | Supabase Auth, Postgres, row-level security, private Storage buckets |
-| Matching and generation | Structured OpenCode Go responses validated with Zod |
-| Job collection | Arbeitnow plus public Personio, SmartRecruiters, Lever, and LinkedIn pages |
-| Background work | Scheduled GitHub Actions, claim-safe queues, retry and stale-job recovery |
-| Documents | Template-preserving LaTeX rendering and Tectonic compilation |
-| Notifications | Account-specific Telegram Bot API alerts |
+| Area                    | Implementation                                                             |
+| ----------------------- | -------------------------------------------------------------------------- |
+| Web application         | TypeScript, Next.js 16, React 19, Tailwind CSS, Vercel Functions           |
+| Identity and data       | Supabase Auth, Postgres, row-level security, private Storage buckets       |
+| Matching and generation | Structured OpenCode Go responses validated with Zod                        |
+| Job collection          | Arbeitnow plus public Personio, SmartRecruiters, Lever, and LinkedIn pages |
+| Background work         | Scheduled GitHub Actions, claim-safe queues, retry and stale-job recovery  |
+| Documents               | Template-preserving LaTeX rendering and Tectonic compilation               |
+| Notifications           | Account-specific Telegram Bot API alerts                                   |
 
 ## Engineering decisions
 
