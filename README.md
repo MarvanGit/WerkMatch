@@ -2,7 +2,7 @@
 
 **A multi-user job-search workspace that turns verified CV evidence into ranked opportunities and tailored application documents.**
 
-[Live website](https://werkmatch.marwan-abdelsamad.chatgpt.site) · [Interactive demo](https://werkmatch.marwan-abdelsamad.chatgpt.site/demo)
+[Live website](https://werkmatch-orcin.vercel.app) · [Interactive demo](https://werkmatch-orcin.vercel.app/demo)
 
 ![WerkMatch job radar](./public/og.png)
 
