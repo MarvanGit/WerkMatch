@@ -99,20 +99,39 @@ export async function runSearchForUser(
     throw new Error('Verify your candidate facts before running a search.');
   }
 
-  const { data: allowed, error: quotaError } = await supabase.rpc('consume_werkmatch_usage', { requested_user: userId, requested_operation: 'search' });
-  if (quotaError) throw new Error('Search usage controls are unavailable. Please try again later.');
-  if (!allowed) throw new Error('Search limit reached: allow 15 minutes between searches, up to 6 per day.');
+  const { data: allowed, error: quotaError } = await supabase.rpc(
+    'consume_werkmatch_usage',
+    { requested_user: userId, requested_operation: 'search' },
+  );
+  if (quotaError)
+    throw new Error(
+      'Search usage controls are unavailable. Please try again later.',
+    );
+  if (!allowed)
+    throw new Error(
+      'Search limit reached: allow 15 minutes between searches, up to 6 per day.',
+    );
   const preferences = {
     germanLevel: profileResult.data.german_level,
     englishLevel: profileResult.data.english_level,
-    location: profileResult.data.search_policy?.location ?? 'bavaria-and-remote',
+    location:
+      profileResult.data.search_policy?.location ?? 'bavaria-and-remote',
     roleKeywords: profileResult.data.search_policy?.roleKeywords ?? '',
   };
   const collections = await collectSourceJobs();
-  const keywords = preferences.roleKeywords.split(',').map((word: string) => word.trim().toLowerCase()).filter(Boolean);
-  for (const collection of collections) collection.jobs = collection.jobs.filter(job =>
-    (preferences.location !== 'remote-only' || job.workMode === 'remote') &&
-    (!keywords.length || keywords.some((word: string) => `${job.title} ${job.description}`.toLowerCase().includes(word))));
+  const keywords = preferences.roleKeywords
+    .split(',')
+    .map((word: string) => word.trim().toLowerCase())
+    .filter(Boolean);
+  for (const collection of collections)
+    collection.jobs = collection.jobs.filter(
+      (job) =>
+        (preferences.location !== 'remote-only' || job.workMode === 'remote') &&
+        (!keywords.length ||
+          keywords.some((word: string) =>
+            `${job.title} ${job.description}`.toLowerCase().includes(word),
+          )),
+    );
   if (
     collections.every(
       (collection) => collection.error && !collection.jobs.length,
@@ -164,7 +183,11 @@ export async function runSearchForUser(
   );
   const jobsToEvaluate = distinctSavedJobs
     .filter(
-      (job) => changedJobIds.has(job.id) || !evaluationByJobId.has(job.id) || evaluationByJobId.get(job.id)?.profile_version !== profileResult.data.profile_version,
+      (job) =>
+        changedJobIds.has(job.id) ||
+        !evaluationByJobId.has(job.id) ||
+        evaluationByJobId.get(job.id)?.profile_version !==
+          profileResult.data.profile_version,
     )
     .sort((left, right) => {
       const leftDate =
@@ -178,8 +201,7 @@ export async function runSearchForUser(
   const threshold =
     scheduleResult.data?.notification_threshold ??
     Number(process.env.MATCH_NOTIFICATION_THRESHOLD ?? 75);
-  const telegramChatId =
-    scheduleResult.data?.telegram_chat_id;
+  const telegramChatId = scheduleResult.data?.telegram_chat_id;
   const telegramEnabled =
     (scheduleResult.data?.telegram_enabled ?? true) && Boolean(telegramChatId);
   let evaluated = 0;
@@ -470,33 +492,23 @@ async function saveSourceJobs(
   const uniqueJobs = [
     ...new Map(jobs.map((job) => [job.externalId, job])).values(),
   ];
-  const externalIds = uniqueJobs.map((job) => job.externalId);
-  const existingJobs = await queryBatches(
-    externalIds,
-    (batch) =>
+  const { data: storedJobs } = await databaseOperation(
+    () =>
       supabase
         .from('jobs')
-        .select('id,source,external_id,canonical_url,content_fingerprint')
+        .select(
+          'id,source,external_id,canonical_url,content_fingerprint,title,company,location_text,active,published_at,last_seen_at',
+        )
         .eq('user_id', userId)
-        .eq('source', source)
-        .in('external_id', batch),
-    'Read existing source jobs',
+        .limit(1_000),
+    'Read existing job identities',
+    true,
   );
-  const canonicalJobs = await queryBatches(
-    uniqueJobs.map((job) => job.canonicalUrl),
-    (batch) =>
-      supabase
-        .from('jobs')
-        .select('id,source,external_id,canonical_url,content_fingerprint')
-        .eq('user_id', userId)
-        .in('canonical_url', batch),
-    'Read canonical jobs',
-    20,
+  const resolvedJobs = resolveJobIdentities(
+    source,
+    uniqueJobs,
+    storedJobs ?? [],
   );
-  const resolvedJobs = resolveJobIdentities(source, uniqueJobs, [
-    ...(existingJobs ?? []),
-    ...(canonicalJobs ?? []),
-  ]);
   const preparedJobs = await Promise.all(
     resolvedJobs.map(async (job) => ({
       ...job,

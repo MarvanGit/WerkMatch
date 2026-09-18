@@ -34,6 +34,7 @@ import {
 import { RunSearchButton } from '@/components/run-search-button';
 import { GenerateDocumentsButton } from '@/components/generate-documents-button';
 import { MobileWorkspaceMenu } from '@/components/workspace-chrome';
+import { deduplicateJobMatches } from '@/lib/jobs/matches';
 import { createClient } from '@/lib/supabase/server';
 import { PublicHome } from '@/components/public-home';
 
@@ -57,6 +58,7 @@ type StoredJob = {
   location_text: string;
   work_mode: string;
   canonical_url: string;
+  published_at: string | null;
   first_seen_at: string;
 };
 
@@ -128,9 +130,13 @@ export default async function Home({ searchParams }: HomeProps) {
 
   if (!user) return <PublicHome />;
 
-  const { data: candidateProfile } = await supabase.from('candidate_profiles')
-    .select('master_cv_object_key,german_level,search_policy').eq('user_id', user.id).maybeSingle();
-  if (candidateProfile && !candidateProfile.master_cv_object_key) redirect('/onboarding');
+  const { data: candidateProfile } = await supabase
+    .from('candidate_profiles')
+    .select('master_cv_object_key,german_level,search_policy')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (candidateProfile && !candidateProfile.master_cv_object_key)
+    redirect('/onboarding');
 
   const weekStart = new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1_000);
   const [
@@ -160,6 +166,7 @@ export default async function Home({ searchParams }: HomeProps) {
       .from('jobs')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', user.id)
+      .eq('active', true)
       .gte('first_seen_at', weekStart.toISOString()),
     supabase
       .from('match_evaluations')
@@ -180,9 +187,10 @@ export default async function Home({ searchParams }: HomeProps) {
     ? await supabase
         .from('jobs')
         .select(
-          'id,title,company,location_text,work_mode,canonical_url,first_seen_at',
+          'id,title,company,location_text,work_mode,canonical_url,published_at,first_seen_at',
         )
         .eq('user_id', user.id)
+        .eq('active', true)
         .in('id', jobIds)
     : { data: [] };
   const jobById = new Map(
@@ -194,38 +202,41 @@ export default async function Home({ searchParams }: HomeProps) {
       fact.tags as string[],
     ]),
   );
-  const jobs = evaluations.flatMap((evaluation) => {
-    const job = jobById.get(evaluation.job_id);
-    if (!job) return [];
+  const jobs = deduplicateJobMatches(
+    evaluations.flatMap((evaluation) => {
+      const job = jobById.get(evaluation.job_id);
+      if (!job) return [];
 
-    const evidence = Array.isArray(evaluation.matched_evidence)
-      ? (evaluation.matched_evidence as Array<{ candidateFactId?: string }>)
-      : [];
-    const tags = [
-      ...new Set(
-        evidence.flatMap((item) =>
-          item.candidateFactId
-            ? (factTags.get(item.candidateFactId) ?? [])
-            : [],
+      const evidence = Array.isArray(evaluation.matched_evidence)
+        ? (evaluation.matched_evidence as Array<{ candidateFactId?: string }>)
+        : [];
+      const tags = [
+        ...new Set(
+          evidence.flatMap((item) =>
+            item.candidateFactId
+              ? (factTags.get(item.candidateFactId) ?? [])
+              : [],
+          ),
         ),
-      ),
-    ].slice(0, 5);
+      ].slice(0, 5);
 
-    return [
-      {
-        ...job,
-        score: evaluation.overall_score,
-        summary: evaluation.summary,
-        reasons: Array.isArray(evaluation.reasons)
-          ? (evaluation.reasons as string[])
-          : [],
-        languageRisk: evaluation.language_risk,
-        languageAssessment: evaluation.language_assessment,
-        tags,
-        status: evaluation.overall_score >= 80 ? 'Strong match' : 'Good match',
-      },
-    ];
-  });
+      return [
+        {
+          ...job,
+          score: evaluation.overall_score,
+          summary: evaluation.summary,
+          reasons: Array.isArray(evaluation.reasons)
+            ? (evaluation.reasons as string[])
+            : [],
+          languageRisk: evaluation.language_risk,
+          languageAssessment: evaluation.language_assessment,
+          tags,
+          status:
+            evaluation.overall_score >= 80 ? 'Strong match' : 'Good match',
+        },
+      ];
+    }),
+  );
   const selectedJob =
     jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? null;
   const featuredJobs = selectedJob
@@ -240,8 +251,7 @@ export default async function Home({ searchParams }: HomeProps) {
     Math.round((schedule?.interval_minutes ?? 360) / 60),
   );
   const telegramReady =
-    (schedule?.telegram_enabled ?? true) &&
-    Boolean(schedule?.telegram_chat_id);
+    (schedule?.telegram_enabled ?? true) && Boolean(schedule?.telegram_chat_id);
   const stats = [
     {
       label: 'New this week',
