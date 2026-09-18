@@ -14,6 +14,7 @@ import {
 } from '../lib/ai/documents.ts';
 import { renderTailoredDocuments } from '../lib/documents/render.ts';
 import { reusableTailoringPlan } from '../lib/documents/cover-letter-policy.ts';
+import { requirePdfPageCount } from '../lib/documents/pdf.ts';
 import { sendTelegramDocumentsReady } from '../lib/notifications/telegram.ts';
 import { ownsAsset } from '../lib/domain/onboarding.ts';
 
@@ -180,8 +181,7 @@ async function processRequest(request: GenerationRequest): Promise<boolean> {
     }
     const coverTemplate = await downloadCandidateTemplate({
       userId: request.user_id,
-      configuredKey:
-        profileResult.data.cover_letter_template_object_key,
+      configuredKey: profileResult.data.cover_letter_template_object_key,
       kind: 'cover-letter',
       required: false,
     });
@@ -253,7 +253,8 @@ async function processRequest(request: GenerationRequest): Promise<boolean> {
       'utf8',
     );
     if (profileResult.data.portrait_object_key) {
-      if (!ownsAsset(request.user_id, profileResult.data.portrait_object_key)) throw new Error('Portrait does not belong to this account.');
+      if (!ownsAsset(request.user_id, profileResult.data.portrait_object_key))
+        throw new Error('Portrait does not belong to this account.');
       const { data: portraitBlob, error: portraitError } =
         await supabase.storage
           .from('candidate-assets')
@@ -291,6 +292,7 @@ async function processRequest(request: GenerationRequest): Promise<boolean> {
 
     await compileLatex(workingDirectory, 'cv.tex');
     await compileLatex(workingDirectory, 'cover_letter.tex');
+    await requirePdfPageCount(join(workingDirectory, 'cover_letter.pdf'), 1);
 
     const artifacts = [
       {
@@ -354,8 +356,7 @@ async function processRequest(request: GenerationRequest): Promise<boolean> {
       .eq('user_id', request.user_id);
     if (readyError) throw readyError;
 
-    const telegramChatId =
-      scheduleResult.data?.telegram_chat_id;
+    const telegramChatId = scheduleResult.data?.telegram_chat_id;
     if (
       process.env.SUPPRESS_DOCUMENT_NOTIFICATIONS !== 'true' &&
       (scheduleResult.data?.telegram_enabled ?? true) &&
@@ -415,7 +416,8 @@ async function downloadCandidateTemplate(input: {
   }
 
   for (const key of candidateKeys) {
-    if (!ownsAsset(input.userId, key)) throw new Error('Template does not belong to this account.');
+    if (!ownsAsset(input.userId, key))
+      throw new Error('Template does not belong to this account.');
     const { data, error } = await supabase.storage
       .from('candidate-assets')
       .download(key);
@@ -448,7 +450,18 @@ async function compileLatex(directory: string, fileName: string) {
         '--untrusted',
         fileName,
       ],
-      { cwd: directory, stdio: ['ignore', 'pipe', 'pipe'], timeout: 120_000, env: { PATH: process.env.PATH, HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, SYSTEMROOT: process.env.SYSTEMROOT, TMPDIR: process.env.TMPDIR } as unknown as NodeJS.ProcessEnv },
+      {
+        cwd: directory,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 120_000,
+        env: {
+          PATH: process.env.PATH,
+          HOME: process.env.HOME,
+          USERPROFILE: process.env.USERPROFILE,
+          SYSTEMROOT: process.env.SYSTEMROOT,
+          TMPDIR: process.env.TMPDIR,
+        } as unknown as NodeJS.ProcessEnv,
+      },
     );
     let output = '';
     child.stdout.on('data', (chunk) => (output += chunk.toString()));

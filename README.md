@@ -62,6 +62,8 @@ WerkMatch uses deterministic filters for role type and location before asking th
 
 The uploaded CV remains the source of truth. Tailoring may reorder recognizable skill entries and local bullet points to emphasize relevance, but it cannot rewrite factual content or change the document's section structure. Cover letters preserve the user's template, sender, layout, closing, and signature while replacing job-specific fields and an evidence-backed body.
 
+Each cover letter explains the candidate's fit and contribution, connects relevant skills to a named verified project and certification, describes concrete professional experience, and includes the confirmed availability statement. The worker rejects a compiled cover letter unless the PDF is exactly one A4 page.
+
 ### Design for interrupted workers
 
 Document requests move through explicit queue states. Workers reclaim stale work, atomically claim one request, reuse validated tailoring plans after compilation failures, and never publish incomplete output as ready. Collection jobs retain results completed before a runtime deadline instead of discarding the entire run.

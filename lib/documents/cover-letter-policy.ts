@@ -4,8 +4,7 @@ import {
   type TailoringPlanOutput,
 } from '../domain/contracts.ts';
 
-export const documentPromptVersion =
-  'documents-v8-personal-candidate-content';
+export const documentPromptVersion = 'documents-v9-one-page-proven-experience';
 
 export function coverLetterRequirements(facts: CandidateFactForDocuments[]) {
   const study = facts.find(
@@ -119,17 +118,45 @@ export function validateCoverLetterPlan(
     throw new Error(
       'The technical-skills paragraph must explain at least two verified skills and their relevance to the role.',
     );
+  const projects = paragraphs[1].evidenceFactIds
+    .map((id) => factById.get(id)!)
+    .filter((fact) => fact.category === 'project');
+  if (!projects.some((fact) => containsFactLabel(paragraphs[1].text, fact)))
+    throw new Error(
+      'The technical-skills paragraph must name a verified project where the candidate applied those skills.',
+    );
+  const certifications = paragraphs[1].evidenceFactIds
+    .map((id) => factById.get(id)!)
+    .filter((fact) => fact.category === 'certification');
+  if (
+    !certifications.length ||
+    !/(?:zertifikat|zertifizierung|certificate|certification|nanodegree|bootcamp)/iu.test(
+      paragraphs[1].text,
+    )
+  )
+    throw new Error(
+      'The technical-skills paragraph must mention a relevant verified certification.',
+    );
   const employers = paragraphs[2].evidenceFactIds
     .map((id) => factById.get(id)!)
     .filter(
       (fact) =>
         fact.category === 'experience' &&
-        typeof fact.details.organization === 'string' && Boolean(fact.details.organization.trim()),
+        typeof fact.details.organization === 'string' &&
+        Boolean(fact.details.organization.trim()),
     );
   if (
-    !(employers.length ? employers.some((fact) =>
-      containsTerm(paragraphs[2].text, String(fact.details.organization)),
-    ) : paragraphs[2].evidenceFactIds.map(id => factById.get(id)!).some(fact => fact.category === 'project' && containsTerm(paragraphs[2].text, fact.title))) ||
+    !(employers.length
+      ? employers.some((fact) =>
+          containsTerm(paragraphs[2].text, String(fact.details.organization)),
+        )
+      : paragraphs[2].evidenceFactIds
+          .map((id) => factById.get(id)!)
+          .some(
+            (fact) =>
+              fact.category === 'project' &&
+              containsTerm(paragraphs[2].text, fact.title),
+          )) ||
     paragraphs[2].text.length < 300
   )
     throw new Error(
@@ -167,7 +194,7 @@ export function validateCoverLetterPlan(
     }
   }
   const text = paragraphs.map((p) => p.text).join(' ');
-  if (text.length > 2_700)
+  if (text.length > 2_400)
     throw new Error('The cover letter exceeds the one-page content budget.');
   if (
     /(?:\\[a-zA-Z]+|```|\*\*)/.test(
@@ -207,6 +234,17 @@ function containsTerm(text: string, term: string) {
     `(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`,
     'iu',
   ).test(text);
+}
+
+function containsFactLabel(
+  text: string,
+  fact: CandidateFactForDocuments,
+): boolean {
+  const shortLabel = fact.title.split(/\s+(?:-|--|–|—)\s+/u)[0]?.trim();
+  return (
+    containsTerm(text, fact.title) ||
+    Boolean(shortLabel && containsTerm(text, shortLabel))
+  );
 }
 
 export function jobRequirementQuotes(job: {

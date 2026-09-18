@@ -43,6 +43,24 @@ const facts = [
     tags: [],
     order_index: 2,
   },
+  {
+    fact_key: 'project.example',
+    category: 'project',
+    title: 'Example Platform',
+    summary: 'A practical backend project',
+    details: {},
+    tags: ['Python', 'PostgreSQL'],
+    order_index: 3,
+  },
+  {
+    fact_key: 'certification.example',
+    category: 'certification',
+    title: 'Backend Development Certificate',
+    summary: 'Verified backend certification',
+    details: { issuer: 'Example Institute' },
+    tags: ['Python', 'PostgreSQL'],
+    order_index: 4,
+  },
 ];
 const job = {
   title: 'Working Student Backend',
@@ -79,8 +97,12 @@ function draft(): TailoringPlanOutput {
           evidenceFactIds: ['skills.backend'],
         },
         {
-          text: 'Mit Python und PostgreSQL kann ich die Entwicklung Ihrer Backend-Dienste unterstützen. Dabei lege ich Wert auf nachvollziehbare Datenmodelle, verständliche Schnittstellen und sorgfältige Tests. Diese Kenntnisse möchte ich gezielt für die in Ihrer Ausschreibung beschriebenen Aufgaben einsetzen und in der Zusammenarbeit mit Ihrem Team weiter vertiefen.',
-          evidenceFactIds: ['skills.backend'],
+          text: 'Mit Python und PostgreSQL kann ich die Entwicklung Ihrer Backend-Dienste unterstützen. In der Example Platform habe ich diese Kenntnisse für ein praktisches Backend eingesetzt; das Backend Development Certificate bestätigt zusätzlich meine fachliche Weiterbildung. Dadurch kann ich Datenmodelle und Schnittstellen nachvollziehbar entwickeln und die in Ihrer Ausschreibung beschriebenen Aufgaben fundiert unterstützen.',
+          evidenceFactIds: [
+            'skills.backend',
+            'project.example',
+            'certification.example',
+          ],
         },
         {
           text: 'Bei Example Labs habe ich praktische Erfahrung in der Backend-Entwicklung und beim Testen gesammelt. Zu meinen Aufgaben gehörte es, Fehler nachvollziehbar zu untersuchen und die Ergebnisse klar zu dokumentieren. Dieses systematische Vorgehen möchte ich für Ihre automatisierten Tests einsetzen und damit zu gut überprüfbaren Softwareänderungen im Team beitragen.',
@@ -109,12 +131,27 @@ void test('missing profile availability fails before any generation', () => {
   );
 });
 void test('a candidate without an employer can cite a verified practical project', () => {
-  const projectFacts = facts.map(fact => fact.category === 'experience' ? { ...fact, category: 'project', title: 'Example Labs', details: {} } : fact);
+  const projectFacts = facts.map((fact) =>
+    fact.category === 'experience'
+      ? { ...fact, category: 'project', title: 'Example Labs', details: {} }
+      : fact,
+  );
   const plan = assembleRequiredContent(draft(), projectFacts);
-  plan.coverLetter.paragraphs[2].text = plan.coverLetter.paragraphs[2].text.replace('Bei Example Labs', 'Im Projekt Example Labs');
+  plan.coverLetter.paragraphs[2].text =
+    plan.coverLetter.paragraphs[2].text.replace(
+      'Bei Example Labs',
+      'Im Projekt Example Labs',
+    );
   validateCoverLetterPlan(plan, projectFacts, job);
-  plan.coverLetter.paragraphs[2].text = plan.coverLetter.paragraphs[2].text.replace('Example Labs', 'Unverified Project');
-  assert.throws(() => validateCoverLetterPlan(plan, projectFacts, job), /experience paragraph/);
+  plan.coverLetter.paragraphs[2].text =
+    plan.coverLetter.paragraphs[2].text.replace(
+      'Example Labs',
+      'Unverified Project',
+    );
+  assert.throws(
+    () => validateCoverLetterPlan(plan, projectFacts, job),
+    /experience paragraph/,
+  );
 });
 void test('letters missing technical skills or professional experience are rejected', () => {
   for (const index of [1, 2]) {
@@ -124,6 +161,19 @@ void test('letters missing technical skills or professional experience are rejec
     assert.throws(
       () => validateCoverLetterPlan(plan, facts, job),
       index === 1 ? /technical-skills/ : /experience paragraph/,
+    );
+  }
+});
+void test('letters must prove skills with a named project and certification', () => {
+  for (const missing of ['project.example', 'certification.example']) {
+    const plan = assembleRequiredContent(draft(), facts);
+    plan.coverLetter.paragraphs[1].evidenceFactIds =
+      plan.coverLetter.paragraphs[1].evidenceFactIds.filter(
+        (id) => id !== missing,
+      );
+    assert.throws(
+      () => validateCoverLetterPlan(plan, facts, job),
+      missing.startsWith('project') ? /verified project/ : /certification/,
     );
   }
 });
