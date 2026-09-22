@@ -46,6 +46,11 @@ const sourceCopy: Record<string, { name: string; description: string }> = {
     description:
       'Direct HTML listings from selected employers with Bavarian and remote roles.',
   },
+  siemens: {
+    name: 'Siemens career sites',
+    description:
+      'Official Siemens, Siemens Mobility, Siemens Healthineers, Siemens Energy, and Siemens Gamesa listings.',
+  },
 };
 
 export default async function SourcesPage() {
@@ -66,6 +71,7 @@ export default async function SourcesPage() {
     'personio',
     'smartrecruiters',
     'lever',
+    'siemens',
     'linkedin',
   ];
   const byName = new Map(stored.map((source) => [source.source, source]));

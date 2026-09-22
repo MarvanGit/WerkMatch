@@ -24,6 +24,11 @@ import {
   defaultSmartRecruitersBoards,
   fetchSmartRecruitersJobs,
 } from '../sources/smartrecruiters.ts';
+import {
+  defaultHealthineersBoard,
+  defaultSiemensMarketplaceQueries,
+  fetchSiemensJobs,
+} from '../sources/siemens.ts';
 import type { NormalizedSourceJob } from '../sources/types.ts';
 
 const maxEvaluationsPerRun = 16;
@@ -326,13 +331,14 @@ export async function runSearchForUser(
 }
 
 async function collectSourceJobs(): Promise<SourceCollection[]> {
-  const [arbeitnow, personio, linkedin, smartrecruiters, lever] =
+  const [arbeitnow, personio, linkedin, smartrecruiters, lever, siemens] =
     await Promise.allSettled([
       fetchArbeitnowJobs(),
       fetchPersonioJobs(),
       fetchLinkedInJobs(),
       fetchSmartRecruitersJobs(),
       fetchLeverJobs(),
+      fetchSiemensJobs(),
     ]);
 
   const collections: SourceCollection[] = [];
@@ -477,6 +483,48 @@ async function collectSourceJobs(): Promise<SourceCollection[]> {
         lever.reason instanceof Error
           ? lever.reason.message
           : 'Lever scraper failed.',
+    });
+  }
+
+  if (siemens.status === 'fulfilled') {
+    collections.push({
+      source: 'siemens',
+      scanned: siemens.value.scanned,
+      jobs: siemens.value.jobs,
+      config: {
+        marketplaces: defaultSiemensMarketplaceQueries.map((query) => ({
+          id: query.id,
+          marketplace: query.marketplace,
+          url: query.url,
+          max_pages: query.maxPages,
+        })),
+        healthineers: defaultHealthineersBoard.apiBaseUrl,
+        candidate_pages: siemens.value.candidatePages,
+        listing_requests: siemens.value.listingRequests,
+        portals: siemens.value.portals,
+      },
+      error: siemens.value.errors.length
+        ? siemens.value.errors.join('; ').slice(0, 2_000)
+        : null,
+    });
+  } else {
+    collections.push({
+      source: 'siemens',
+      scanned: 0,
+      jobs: [],
+      config: {
+        marketplaces: defaultSiemensMarketplaceQueries.map((query) => ({
+          id: query.id,
+          marketplace: query.marketplace,
+          url: query.url,
+          max_pages: query.maxPages,
+        })),
+        healthineers: defaultHealthineersBoard.apiBaseUrl,
+      },
+      error:
+        siemens.reason instanceof Error
+          ? siemens.reason.message
+          : 'Siemens scraper failed.',
     });
   }
   return collections;
