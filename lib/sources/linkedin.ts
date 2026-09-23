@@ -10,13 +10,13 @@ import type { NormalizedSourceJob } from './types.ts';
 const guestJobsEndpoint =
   'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search';
 const searchPageSize = 10;
-const defaultMaxSearchPages = 8;
-const hardMaxSearchPages = 12;
-const defaultMaxCandidatePages = 160;
-const hardMaxCandidatePages = 300;
+const defaultMaxSearchPages = 12;
+const hardMaxSearchPages = 32;
+const defaultMaxCandidatePages = 240;
+const hardMaxCandidatePages = 1_000;
 const detailConcurrency = 4;
 const listingConcurrency = 3;
-const defaultRuntimeSeconds = 360;
+const defaultRuntimeSeconds = 480;
 const maxFetchAttempts = 3;
 const maxHtmlBytes = 2_000_000;
 const requestSpacingMilliseconds = 1_000;
@@ -179,10 +179,22 @@ export async function fetchLinkedInJobs(
       'LINKEDIN_MAX_RUNTIME_SECONDS',
       defaultRuntimeSeconds,
       30,
-      480,
+      1_800,
     ) * 1_000;
   const startedAt = Date.now();
-  const listingDeadline = startedAt + Math.floor(runtimeMilliseconds * 0.55);
+  // Reserve enough time for one-second-spaced detail requests, with room for
+  // network latency and retries after listing discovery finishes.
+  const detailBudgetMilliseconds =
+    maxCandidates * requestSpacingMilliseconds + 60_000;
+  const listingDeadline =
+    startedAt +
+    Math.max(
+      Math.floor(runtimeMilliseconds * 0.25),
+      Math.min(
+        Math.floor(runtimeMilliseconds * 0.45),
+        runtimeMilliseconds - detailBudgetMilliseconds,
+      ),
+    );
   const deadline = startedAt + runtimeMilliseconds;
   const limiter = createRequestLimiter();
   const listingSignal = AbortSignal.timeout(

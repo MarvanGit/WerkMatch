@@ -70,6 +70,25 @@ void test('safe database operations recover from the observed connection reset',
   assert.equal(result.data, 'ok');
 });
 
+void test('safe database reads retry a transient Cloudflare 522 response', async () => {
+  let calls = 0;
+  const result = await databaseOperation(
+    async () =>
+      ++calls === 1
+        ? {
+            error: {
+              message: '<title>supabase.co | 522: Connection timed out</title>',
+            },
+            data: null,
+          }
+        : { error: null, data: [{ user_id: 'test-user' }] },
+    'Read search schedules',
+    true,
+  );
+  assert.equal(calls, 2);
+  assert.deepEqual(result.data, [{ user_id: 'test-user' }]);
+});
+
 void test('database claims are not replayed and plain errors retain context', async () => {
   let calls = 0;
   await assert.rejects(

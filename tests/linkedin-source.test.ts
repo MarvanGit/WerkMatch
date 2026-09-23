@@ -72,7 +72,7 @@ void test('query overlap does not hide deeper results and regions are interleave
   assert.equal(new Set(result.jobs.map((j) => j.canonicalUrl)).size, 11);
 });
 
-void test('default budget retrieves more than 40 details with at most four active workers', async (t) => {
+void test('default budget retrieves 240 details with at most four active workers', async (t) => {
   defaults(t);
   const realNow = Date.now.bind(Date),
     realTimer = setTimeout;
@@ -93,7 +93,7 @@ void test('default budget retrieves more than 40 details with at most four activ
     if (input.includes('jobs-guest'))
       return html(
         ++listingCalls === 1
-          ? cards(Array.from({ length: 55 }, (_, i) => 100 + i))
+          ? cards(Array.from({ length: 240 }, (_, i) => 100 + i))
           : '<ul></ul>',
       );
     active++;
@@ -103,10 +103,43 @@ void test('default budget retrieves more than 40 details with at most four activ
     return html(detail);
   });
   const result = await fetchLinkedInJobs([board]);
-  assert.equal(result.detailRequests, 55);
-  assert.equal(result.jobs.length, 55);
+  assert.equal(result.detailRequests, 240);
+  assert.equal(result.jobs.length, 240);
   assert.ok(maxActive <= 4);
   assert.equal(result.errors.length, 0);
+});
+
+void test('scheduled budget can retrieve 800 distinct job details', async (t) => {
+  defaults(t);
+  process.env.LINKEDIN_MAX_SEARCH_PAGES = '24';
+  process.env.LINKEDIN_MAX_CANDIDATES = '800';
+  process.env.LINKEDIN_MAX_RUNTIME_SECONDS = '1440';
+  const realNow = Date.now.bind(Date),
+    realTimer = setTimeout;
+  let elapsed = 0;
+  t.mock.method(Date, 'now', () => realNow() + elapsed);
+  t.mock.method(
+    globalThis,
+    'setTimeout',
+    (callback: () => void, milliseconds: number) => {
+      elapsed += milliseconds;
+      return realTimer(callback, 0);
+    },
+  );
+  let listingCalls = 0;
+  t.mock.method(globalThis, 'fetch', async (input: string) =>
+    html(
+      input.includes('jobs-guest')
+        ? ++listingCalls === 1
+          ? cards(Array.from({ length: 800 }, (_, i) => 1_000 + i))
+          : '<ul></ul>'
+        : detail,
+    ),
+  );
+  const result = await fetchLinkedInJobs([board]);
+  assert.equal(result.detailRequests, 800);
+  assert.equal(result.jobs.length, 800);
+  assert.equal(result.budgetExhausted, false);
 });
 
 void test('repeated pages stop only their own query', async (t) => {

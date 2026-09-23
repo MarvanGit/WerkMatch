@@ -1,4 +1,4 @@
-import { errorMessage } from '../lib/supabase/operation.ts';
+import { databaseOperation, errorMessage } from '../lib/supabase/operation.ts';
 import { createClient } from '@supabase/supabase-js';
 
 import { runSearchForUser } from '../lib/search/run-search.ts';
@@ -11,12 +11,22 @@ const supabase = createClient(supabaseUrl, supabaseSecretKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-const { data: schedules, error } = await supabase
-  .from('search_schedules')
-  .select('user_id,next_run_at')
-  .eq('enabled', true);
-
-if (error) throw error;
+const { data: schedules } = await databaseOperation(
+  () =>
+    supabase
+      .from('search_schedules')
+      .select('user_id,next_run_at')
+      .eq('enabled', true),
+  'Read search schedules',
+  true,
+).catch((error: unknown) => {
+  const message = errorMessage(error);
+  throw new Error(
+    /522|Connection timed out/i.test(message)
+      ? 'Read search schedules: Supabase origin timed out (Cloudflare 522) after 3 attempts.'
+      : message.slice(0, 500),
+  );
+});
 
 const now = Date.now();
 const dueSchedules = (schedules ?? []).filter(

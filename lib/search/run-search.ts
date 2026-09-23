@@ -31,7 +31,13 @@ import {
 } from '../sources/siemens.ts';
 import type { NormalizedSourceJob } from '../sources/types.ts';
 
-const maxEvaluationsPerRun = 16;
+const maxEvaluationsPerRun = Math.max(
+  1,
+  Math.min(
+    40,
+    Number.parseInt(process.env.MAX_EVALUATIONS_PER_RUN ?? '20', 10) || 20,
+  ),
+);
 
 type SourceCollection = {
   source: string;
